@@ -24,7 +24,7 @@ export default function Dashboard({ words, counts, profile, goTo, reload }) {
     store.listLessons().then((ls) => {
       if (ls.length) setSpark(ls[Math.floor(Math.random() * ls.length)])
     }).catch(() => {})
-  }, [profile]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [profile])
 
   const today = store.localDay()
   const todayCount = activity[today] || 0

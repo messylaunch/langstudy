@@ -20,7 +20,7 @@ export default function TeacherClass({ profile }) {
 
   useEffect(() => {
     load()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   if (store.mode() === 'local') {
     return (

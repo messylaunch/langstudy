@@ -1,0 +1,29 @@
+name: CI
+
+# Runs the fast, deterministic gate on every PR and on pushes to the working
+# branch. The Playwright smoke (`npm run smoke`) is intentionally NOT run here:
+# it depends on a preinstalled Chromium at a fixed path in the dev environment,
+# not on CI. Run it locally before releasing (see the pre-deploy-verify skill).
+on:
+  pull_request:
+  push:
+    branches:
+      - 'claude/**'
+      - main
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm test
+      - name: Production build
+        run: npm run build
