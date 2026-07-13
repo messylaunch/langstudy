@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import * as store from '../lib/store.js'
 import { getConfig, saveConfig } from '../lib/config.js'
 import { resetSupabase } from '../lib/supabaseClient.js'
@@ -26,6 +26,15 @@ export default function Settings({ profile, counts, onSaved, onReplayTour }) {
   const [accountMsg, setAccountMsg] = useState('')
   const [classCode, setClassCode] = useState('')
   const [classMsg, setClassMsg] = useState('')
+  const [teacherName, setTeacherName] = useState('')
+
+  useEffect(() => {
+    if (profile?.teacher_id) {
+      store.getTeacherProfile(profile.teacher_id).then((t) => {
+        if (t) setTeacherName(t.display_name || t.email)
+      })
+    }
+  }, [profile?.teacher_id])
 
   const onAvatarFile = async (e) => {
     const file = e.target.files?.[0]
@@ -197,7 +206,10 @@ export default function Settings({ profile, counts, onSaved, onReplayTour }) {
           </>
         ) : profile?.teacher_id ? (
           <>
-            <p className="muted small">You're in a class ✔ — your teacher can see your progress and send you homework.</p>
+            <p className="muted small">
+              You're in {teacherName ? <strong>{teacherName}'s</strong> : 'a'} class ✔ — your
+              teacher can see your progress and send you homework.
+            </p>
             <button
               className="btn ghost small"
               onClick={async () => {

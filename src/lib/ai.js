@@ -178,16 +178,37 @@ async function callDirect(prompt, schema, maxTokens) {
   return text ? JSON.parse(text.text) : null
 }
 
+// Returns null ONLY when the function isn't deployed / unreachable (so callers
+// can fall back to a personal API key). Real errors from a deployed function
+// (rate limit, refusal, server error) are thrown with their actual message —
+// telling a user with working AI to "go deploy the edge functions" is worse
+// than the truth.
 async function callEdgeFunction(name, body) {
   if (mode() !== 'supabase') return null
   const sb = getSupabase()
+  let response
   try {
-    const { data, error } = await sb.functions.invoke(name, { body })
-    if (error) return null
-    return data
+    response = await sb.functions.invoke(name, { body })
   } catch {
+    return null // network-level failure → try fallback
+  }
+  const { data, error } = response
+  if (error) {
+    let status = 0
+    let detail = ''
+    try {
+      status = error.context?.status || 0
+      const parsed = await error.context?.json?.()
+      detail = parsed?.error || ''
+    } catch {
+      /* body not JSON */
+    }
+    if (status === 404) return null // function not deployed → fallback
+    if (status) throw new Error(detail || `The AI service returned an error (${status}). Try again.`)
     return null
   }
+  if (data && data.error) throw new Error(data.error)
+  return data
 }
 
 export function aiAvailable() {

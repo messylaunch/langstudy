@@ -35,7 +35,7 @@ export function startReminderLoop(getSettings, hasStudiedToday) {
       if (!('Notification' in window) || Notification.permission !== 'granted') return
       const now = new Date()
       const [h, m] = (settings.reminderTime || '19:00').split(':').map(Number)
-      const today = now.toISOString().slice(0, 10)
+      const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0')
       if (localStorage.getItem(LS_LAST) === today) return
       if (now.getHours() > h || (now.getHours() === h && now.getMinutes() >= m)) {
         if (!hasStudiedToday()) {

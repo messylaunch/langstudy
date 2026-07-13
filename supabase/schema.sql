@@ -496,3 +496,73 @@ create policy "avatars_update" on storage.objects
     bucket_id = 'avatars' and auth.role() = 'authenticated'
     and (storage.foldername(name))[1] = auth.uid()::text
   );
+
+-- ============================================================================
+-- v2.1 — review fixes: class-scoped leaderboard, students can see their
+-- teacher's name, shared caches are no longer overwritable by anyone.
+-- ============================================================================
+
+-- Students may read their own teacher's profile row (name/avatar for chat).
+drop policy if exists "profiles_select_own_or_master" on public.profiles;
+create policy "profiles_select_own_or_master" on public.profiles
+  for select using (
+    id = auth.uid()
+    or public.is_master()
+    or teacher_id = auth.uid()
+    or id = (select teacher_id from public.profiles p2 where p2.id = auth.uid())
+  );
+
+-- Leaderboard scoped to YOUR CLASS (you + classmates + your teacher).
+-- Users with no class see only themselves; masters see everyone.
+create or replace function public.leaderboard()
+returns table (
+  id uuid,
+  display_name text,
+  avatar_url text,
+  learned bigint,
+  week_cards bigint,
+  points bigint
+)
+language sql security definer set search_path = public stable
+as $$
+  with me as (
+    select p.id,
+      p.role,
+      coalesce(p.teacher_id, case when p.role in ('teacher','master') then p.id end) as class_id
+    from public.profiles p where p.id = auth.uid()
+  )
+  select
+    p.id,
+    coalesce(p.display_name, split_part(p.email, '@', 1)) as display_name,
+    p.avatar_url,
+    coalesce(w.learned, 0) as learned,
+    coalesce(a.week_cards, 0) as week_cards,
+    coalesce(w.learned, 0) * 10 + coalesce(a.total_cards, 0) as points
+  from public.profiles p
+  cross join me
+  left join (
+    select user_id, count(*) filter (where status = 'learned') as learned
+    from public.words group by user_id
+  ) w on w.user_id = p.id
+  left join (
+    select user_id,
+      sum(cards) as total_cards,
+      sum(cards) filter (where day > current_date - 7) as week_cards
+    from public.activity group by user_id
+  ) a on a.user_id = p.id
+  where p.id = auth.uid()
+     or me.role = 'master'
+     or (me.class_id is not null and (p.teacher_id = me.class_id or p.id = me.class_id))
+  order by points desc
+  limit 50;
+$$;
+
+-- Shared caches: first write wins for regular users; only masters may replace
+-- (stops one student overwriting everyone's audio for a word).
+drop policy if exists "audio_update" on storage.objects;
+create policy "audio_update" on storage.objects
+  for update using (bucket_id = 'word-audio' and public.is_master());
+
+drop policy if exists "word_info_update" on public.word_info;
+create policy "word_info_update" on public.word_info
+  for update using (public.is_master());

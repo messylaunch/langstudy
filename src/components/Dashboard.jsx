@@ -26,7 +26,7 @@ export default function Dashboard({ words, counts, profile, goTo, reload }) {
     }).catch(() => {})
   }, [profile]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = store.localDay()
   const todayCount = activity[today] || 0
   const goal = profile?.settings?.dailyGoal || 20
   const dueCount = words.filter((w) => w.status !== 'unknown' && store.isDue(w)).length
@@ -37,7 +37,7 @@ export default function Dashboard({ words, counts, profile, goTo, reload }) {
     const d = new Date()
     if (!activity[today]) d.setDate(d.getDate() - 1)
     for (;;) {
-      const key = d.toISOString().slice(0, 10)
+      const key = store.localDay(d)
       if (activity[key]) {
         streak++
         d.setDate(d.getDate() - 1)
@@ -59,7 +59,7 @@ export default function Dashboard({ words, counts, profile, goTo, reload }) {
 
   return (
     <div>
-      <h1>Bem-vindo{profile?.display_name ? `, ${profile.display_name}` : ''}! 👋</h1>
+      <h1>Boas-vindas{profile?.display_name ? `, ${profile.display_name}` : ''}! 👋</h1>
 
       <div className="stat-grid">
         <div className="stat">

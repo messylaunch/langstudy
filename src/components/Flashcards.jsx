@@ -23,10 +23,12 @@ function gradeStatus(card, target) {
 
 const MAX_REVIEWS_PER_SESSION = 30
 
-function buildQueue(words, settings, scope) {
+function buildQueue(words, settings, scope, direction) {
   // Session scope: everything, one category, or only recently added words
   // (so you can drill exactly what this week's class covered).
   let pool = words
+  // EN→PT cards need an English side to show; PT-only imports are common.
+  if (direction === 'en-pt') pool = pool.filter((w) => (w.english || '').trim())
   if (scope.category && scope.category !== 'all') {
     pool = pool.filter((w) => (w.category || 'general') === scope.category)
   }
@@ -35,13 +37,17 @@ function buildQueue(words, settings, scope) {
     pool = pool.filter((w) => (w.created_at || '') >= cutoff)
   }
 
-  // Reviews: words due by status age (trouble now, learning 1d, recognize 3d,
-  // learned 14d) — oldest first, capped so sessions stay a sane length.
+  // Reviews: words due by status age — trouble words FIRST (lapses are the
+  // highest-priority reviews), then everything else oldest-first, capped so
+  // sessions stay a sane length.
   const now = new Date()
-  const due = pool
+  const dueAll = pool
     .filter((w) => w.status !== 'unknown' && store.isDue(w, now))
     .sort((a, b) => (a.last_reviewed || '').localeCompare(b.last_reviewed || ''))
-    .slice(0, MAX_REVIEWS_PER_SESSION)
+  const due = [
+    ...dueAll.filter((w) => w.status === 'trouble'),
+    ...dueAll.filter((w) => w.status !== 'trouble'),
+  ].slice(0, MAX_REVIEWS_PER_SESSION)
 
   // New words: only while the global learning limit has room.
   const active = words.filter((w) => ['learning', 'trouble'].includes(w.status))
@@ -49,6 +55,7 @@ function buildQueue(words, settings, scope) {
   const fresh = pool
     .filter((w) => w.status === 'unknown')
     .slice(0, Math.min(room, settings.newPerSession || 10))
+  const blockedByLimit = room === 0 && pool.some((w) => w.status === 'unknown')
 
   const queue = [...due, ...fresh]
   // shuffle
@@ -56,7 +63,14 @@ function buildQueue(words, settings, scope) {
     const j = Math.floor(Math.random() * (i + 1))
     ;[queue[i], queue[j]] = [queue[j], queue[i]]
   }
-  return { queue, room, activeCount: active.length, freshCount: fresh.length, dueCount: due.length }
+  return {
+    queue,
+    room,
+    activeCount: active.length,
+    freshCount: fresh.length,
+    dueCount: due.length,
+    blockedByLimit,
+  }
 }
 
 export default function Flashcards({ words, profile, reload, onLesson }) {
@@ -78,7 +92,10 @@ export default function Flashcards({ words, profile, reload, onLesson }) {
     return ['all', ...[...set].sort()]
   }, [words])
 
-  const preview = useMemo(() => buildQueue(words, settings, scope), [words, settings, scope])
+  const preview = useMemo(
+    () => buildQueue(words, settings, scope, direction),
+    [words, settings, scope, direction]
+  )
 
   // Tell the AI chat which word is on screen; clear it when leaving this view.
   const currentPt = session ? session.queue[session.index]?.portuguese : null
@@ -88,7 +105,7 @@ export default function Flashcards({ words, profile, reload, onLesson }) {
   }, [currentPt])
 
   const start = () => {
-    const built = buildQueue(words, settings, scope)
+    const built = buildQueue(words, settings, scope, direction)
     setSession({ queue: built.queue, index: 0, correct: 0 })
     setFlipped(false)
     setShowInfo(false)
@@ -154,14 +171,14 @@ export default function Flashcards({ words, profile, reload, onLesson }) {
               ' — limit reached, no new words will be introduced until you move some to Recognize or Learned (or raise the limit in Settings).'}
           </p>
           <div className="row">
-            <div className="grow">
+            <div className="grow" style={{ minWidth: 150 }}>
               <label>Direction</label>
               <select value={direction} onChange={(e) => setDirection(e.target.value)}>
                 <option value="pt-en">Portuguese → English</option>
                 <option value="en-pt">English → Portuguese</option>
               </select>
             </div>
-            <div className="grow">
+            <div className="grow" style={{ minWidth: 150 }}>
               <label>Category</label>
               <select value={scopeCategory} onChange={(e) => setScopeCategory(e.target.value)}>
                 {categories.map((c) => (
@@ -169,7 +186,7 @@ export default function Flashcards({ words, profile, reload, onLesson }) {
                 ))}
               </select>
             </div>
-            <div className="grow">
+            <div className="grow" style={{ minWidth: 150 }}>
               <label>Words added</label>
               <select value={scopeRecent} onChange={(e) => setScopeRecent(e.target.value)}>
                 <option value={0}>Any time</option>
@@ -183,8 +200,9 @@ export default function Flashcards({ words, profile, reload, onLesson }) {
           </button>
           {preview.queue.length === 0 && (
             <p className="muted small">
-              Nothing to study in this scope right now — every reviewed word is resting until it
-              comes due again. Widen the scope, or add/import more words.
+              {preview.blockedByLimit
+                ? `New words here are waiting because your learning limit (${settings.learningLimit || 20}) is full. Move some words to Recognize or Learned, or raise the limit in Settings.`
+                : 'Nothing to study in this scope right now — every reviewed word is resting until it comes due again. Widen the scope, or add/import more words.'}
             </p>
           )}
         </div>
@@ -231,7 +249,11 @@ export default function Flashcards({ words, profile, reload, onLesson }) {
         ) : (
           <>
             <div className="front-word">{card.portuguese}</div>
-            <div className="back-word">{back === card.portuguese ? card.english : back}</div>
+            <div className="back-word">
+              {(back === card.portuguese ? card.english : back) || (
+                <span className="muted">no translation yet — tap ℹ️ Info or edit the word</span>
+              )}
+            </div>
             {card.notes && <p className="muted small">{card.notes}</p>}
             <div className="hint">how well did you know it?</div>
           </>
@@ -244,8 +266,8 @@ export default function Flashcards({ words, profile, reload, onLesson }) {
             {GRADES.map(([label, status, color, isCorrect]) => (
               <button key={label} style={{ background: color }} disabled={grading} onClick={() => grade(status, isCorrect)}>
                 {label}
-                <div style={{ fontSize: '0.65rem', fontWeight: 400 }}>
-                  {STATUS_LABELS[gradeStatus(card, status)]}
+                <div style={{ fontSize: '0.72rem', fontWeight: 400 }}>
+                  {STATUS_LABELS[gradeStatus(card, status)].replace('Trouble remembering', 'Trouble')}
                 </div>
               </button>
             ))}

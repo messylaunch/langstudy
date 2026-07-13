@@ -4,7 +4,7 @@ import React, { useEffect, useLayoutEffect, useState } from 'react'
 // Runs automatically on first login; can be replayed from Settings.
 const STEPS = (isTeacher) => [
   {
-    title: 'Bem-vindo ao Fala! 👋',
+    title: 'Boas-vindas ao Fala! 👋',
     body: "Here's a 60-second walk-through of where everything lives. You can replay this anytime from Settings → Help & how-to.",
   },
   {
@@ -127,12 +127,12 @@ export default function Tour({ isTeacher, onDone }) {
       <div className="tour-tip" style={tipStyle}>
         <h3>{step.title}</h3>
         <p>{step.body}</p>
-        <div className="row">
-          <div className="tour-dots grow">
-            {steps.map((_, j) => (
-              <span key={j} className={j === i ? 'on' : ''} />
-            ))}
-          </div>
+        <div className="tour-dots" style={{ marginBottom: 10 }}>
+          {steps.map((_, j) => (
+            <span key={j} className={j === i ? 'on' : ''} />
+          ))}
+        </div>
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
           <button className="btn ghost small" onClick={onDone}>
             Skip
           </button>

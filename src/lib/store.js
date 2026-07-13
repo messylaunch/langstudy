@@ -34,13 +34,25 @@ export const STATUS_COLORS = {
 }
 
 // Spaced review: how many days a word "rests" before it's due again, by status.
-// Trouble words are always due (same-day re-drill); learned words come back
-// after two weeks so they can't silently decay.
+// Trouble words come back after ~30 minutes (same-day re-drill, but the due
+// count can actually reach zero); learned words return after two weeks so
+// they can't silently decay.
 export const REVIEW_INTERVALS_DAYS = {
-  trouble: 0,
+  trouble: 0.02,
   learning: 1,
   recognize: 3,
   learned: 14,
+}
+
+// Day key in the user's LOCAL timezone (UTC keys credit evening study in the
+// Americas to "tomorrow", breaking streaks and the daily goal).
+export function localDay(d = new Date()) {
+  const dt = d instanceof Date ? d : new Date(d)
+  return (
+    dt.getFullYear() +
+    '-' + String(dt.getMonth() + 1).padStart(2, '0') +
+    '-' + String(dt.getDate()).padStart(2, '0')
+  )
 }
 
 export function isDue(word, now = new Date()) {
@@ -248,12 +260,28 @@ export async function addWord(fields) {
   }
   const sb = getSupabase()
   const { data: auth } = await sb.auth.getUser()
+  const have = await listWordKeys(sb)
+  if (have.has(word.portuguese.toLowerCase())) return null
   const { data, error } = await sb
     .from('words')
     .upsert({ ...word, user_id: auth.user.id }, { onConflict: 'user_id,portuguese', ignoreDuplicates: true })
     .select()
   if (error) throw error
   return data[0] || null
+}
+
+// Lowercased set of the user's existing Portuguese entries (case/accent-exact
+// duplicates are blocked by the DB; this catches "Casa" vs "casa").
+async function listWordKeys(sb) {
+  const keys = new Set()
+  const page = 1000
+  for (let from = 0; ; from += page) {
+    const { data, error } = await sb.from('words').select('portuguese').range(from, from + page - 1)
+    if (error) break
+    for (const r of data) keys.add(r.portuguese.toLowerCase())
+    if (data.length < page) break
+  }
+  return keys
 }
 
 export async function addWords(items) {
@@ -301,8 +329,8 @@ export async function addWords(items) {
       notes: it.notes || null,
       status: it.status || 'unknown',
     }))
-  // de-dup within the batch itself
-  const seen = new Set()
+  // de-dup within the batch AND against existing words (case-insensitive)
+  const seen = await listWordKeys(sb)
   const unique = rows.filter((r) => {
     const k = r.portuguese.toLowerCase()
     if (seen.has(k)) return false
@@ -365,7 +393,7 @@ export async function recordReview(id, correct, newStatus) {
         w.status_updated_at = now
       }
     }
-    const day = now.slice(0, 10)
+    const day = localDay()
     d.activity[day] = (d.activity[day] || 0) + 1
     saveLocal(d)
     return
@@ -384,7 +412,7 @@ export async function recordReview(id, correct, newStatus) {
     fields.status_updated_at = now
   }
   await updateWord(id, fields)
-  const day = now.slice(0, 10)
+  const day = localDay()
   const { data: auth } = await sb.auth.getUser()
   await sb.rpc('bump_activity', { p_day: day }).then(
     () => {},
@@ -511,10 +539,16 @@ export function getAudioUrl(portuguese) {
 export async function uploadAudio(portuguese, blob) {
   if (mode() === 'local') throw new Error('Audio upload needs Supabase')
   const sb = getSupabase()
+  // First write wins — replacing existing shared audio is master-only.
   const { error } = await sb.storage
     .from('word-audio')
-    .upload(slugify(portuguese) + '.mp3', blob, { upsert: true, contentType: 'audio/mpeg' })
-  if (error) throw error
+    .upload(slugify(portuguese) + '.mp3', blob, { upsert: false, contentType: 'audio/mpeg' })
+  if (error) {
+    if (String(error.message || '').toLowerCase().includes('exists')) {
+      throw new Error('A recording already exists for this word.')
+    }
+    throw error
+  }
 }
 
 // --------------------------------------------------------------------- admin
@@ -877,6 +911,17 @@ export async function completeAssignment(assignment) {
     body: '',
     data: { assignment_id: assignment.id },
   })
+}
+
+export async function getTeacherProfile(teacherId) {
+  if (mode() === 'local' || !teacherId) return null
+  const sb = getSupabase()
+  const { data } = await sb
+    .from('profiles')
+    .select('id,display_name,email,avatar_url')
+    .eq('id', teacherId)
+    .maybeSingle()
+  return data
 }
 
 // -------------------------------------------------------------- leaderboard

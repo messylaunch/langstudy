@@ -21,9 +21,18 @@ function buildQuiz(words, mode, n = 10) {
     // typed mode is production practice: always English → type the Portuguese
     const dir = mode === 'typed' ? 'en-pt' : Math.random() < 0.5 ? 'pt-en' : 'en-pt'
     const answer = dir === 'pt-en' ? word.english : word.portuguese
-    const wrong = shuffle(pool.filter((w) => w.id !== word.id))
-      .slice(0, 3)
-      .map((w) => (dir === 'pt-en' ? w.english : w.portuguese))
+    // distractors must be distinct from the answer AND from each other —
+    // synonymous translations ("antes"/"antes de" → "before") otherwise
+    // produce two identical options
+    const texts = new Set([answer])
+    const wrong = []
+    for (const w of shuffle(pool.filter((x) => x.id !== word.id))) {
+      const t = dir === 'pt-en' ? w.english : w.portuguese
+      if (!t || texts.has(t)) continue
+      texts.add(t)
+      wrong.push(t)
+      if (wrong.length === 3) break
+    }
     return {
       word,
       dir,
@@ -101,12 +110,19 @@ export default function Quiz({ words, reload }) {
   const q = quiz[index]
   const answered = mode === 'typed' ? typedResult !== null : picked !== null
 
+  // Status effects: never demote a word the student hasn't started learning;
+  // a correct answer on a brand-new word IS evidence they recognize it.
+  const quizStatus = (word, correct) => {
+    if (correct) return word.status === 'unknown' ? 'recognize' : null
+    return word.status === 'unknown' ? null : 'trouble'
+  }
+
   const pick = async (opt) => {
     if (answered) return
     setPicked(opt)
     const correct = opt === q.answer
     if (correct) setScore(score + 1)
-    await store.recordReview(q.word.id, correct, correct ? null : 'trouble')
+    await store.recordReview(q.word.id, correct, quizStatus(q.word, correct))
   }
 
   const submitTyped = async () => {
@@ -117,7 +133,7 @@ export default function Quiz({ words, reload }) {
     const correct = normalizePt(typed) === normalizePt(q.answer)
     setTypedResult({ correct, accentMiss: correct && !exact })
     if (correct) setScore(score + 1)
-    await store.recordReview(q.word.id, correct, correct ? null : 'trouble')
+    await store.recordReview(q.word.id, correct, quizStatus(q.word, correct))
   }
 
   const next = () => {

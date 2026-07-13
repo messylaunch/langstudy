@@ -40,7 +40,7 @@ try {
   console.log('tour shown:', Boolean(skip))
 
   const body = await page.textContent('body')
-  console.log('has dashboard:', body.includes('Bem-vindo'))
+  console.log('has dashboard:', body.includes('Boas-vindas'))
   console.log('word count visible:', /Total words/.test(body))
 
   // Navigate to Words

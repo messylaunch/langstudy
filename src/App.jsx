@@ -91,8 +91,8 @@ export default function App() {
     const stop = startReminderLoop(
       () => profile.settings,
       () => {
-        const today = new Date().toISOString().slice(0, 10)
-        return words.some((w) => w.last_reviewed && w.last_reviewed.slice(0, 10) === today)
+        const today = store.localDay()
+        return words.some((w) => w.last_reviewed && store.localDay(new Date(w.last_reviewed)) === today)
       }
     )
     return stop

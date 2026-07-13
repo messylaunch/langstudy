@@ -35,14 +35,17 @@ input, select, textarea { font: inherit; color: inherit; }
 .topbar {
   display: flex; align-items: center; gap: 12px;
   padding: 12px 18px;
+  padding-top: calc(12px + env(safe-area-inset-top));
   background: var(--green);
   color: #fff;
   position: sticky; top: 0; z-index: 20;
+  flex-wrap: nowrap;
 }
+.topbar .logo, .topbar button { white-space: nowrap; }
 .topbar .logo { font-weight: 800; font-size: 1.2rem; letter-spacing: 0.5px; }
 .topbar .logo span { color: var(--yellow); }
 .topbar .spacer { flex: 1; }
-.topbar .who { font-size: 0.8rem; opacity: 0.85; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar .who { font-size: 0.8rem; opacity: 0.85; max-width: 32vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .topbar button {
   background: rgba(255,255,255,0.15); color: #fff; border: none;
   border-radius: 8px; padding: 6px 10px; font-size: 0.8rem;
@@ -53,7 +56,7 @@ input, select, textarea { font: inherit; color: inherit; }
   display: flex; gap: 2px; overflow-x: auto;
   background: var(--green-dark);
   padding: 0 10px;
-  position: sticky; top: 52px; z-index: 19;
+  position: sticky; top: calc(52px + env(safe-area-inset-top)); z-index: 19;
   scrollbar-width: none;
 }
 .nav::-webkit-scrollbar { display: none; }
@@ -188,7 +191,7 @@ label { font-size: 0.83rem; font-weight: 600; color: var(--ink-soft); }
 
 /* ------------------------------------------------------------------- misc */
 .modal-backdrop {
-  position: fixed; inset: 0; background: rgba(20, 25, 22, 0.5); z-index: 50;
+  position: fixed; inset: 0; background: rgba(20, 25, 22, 0.5); z-index: 65;
   display: flex; align-items: center; justify-content: center; padding: 16px;
 }
 .modal {
@@ -218,7 +221,7 @@ label { font-size: 0.83rem; font-weight: 600; color: var(--ink-soft); }
 .landing-hero h1 { font-size: 2.4rem; margin: 10px 0 6px; }
 .landing-hero h1 span { color: var(--yellow); }
 .landing-hero p { opacity: 0.9; max-width: 520px; margin: 0 auto 22px; line-height: 1.5; }
-.landing-hero .btn.cta {
+.btn.cta {
   background: var(--yellow); color: var(--green-dark); font-size: 1.05rem; padding: 13px 30px;
 }
 .landing-hero .btn.ghost-light {
@@ -255,7 +258,7 @@ label { font-size: 0.83rem; font-weight: 600; color: var(--ink-soft); }
 
 /* -------------------------------------------------------------- chat widget */
 .chat-fab {
-  position: fixed; right: 18px; bottom: 18px; z-index: 60;
+  position: fixed; right: 18px; bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 60;
   width: 56px; height: 56px; border-radius: 50%; border: none;
   background: var(--green); color: #fff; font-size: 1.6rem;
   box-shadow: 0 4px 16px rgba(0,0,0,0.25);
@@ -265,7 +268,7 @@ label { font-size: 0.83rem; font-weight: 600; color: var(--ink-soft); }
   background: var(--red); border-radius: 50%; border: 2px solid #fff;
 }
 .chat-panel {
-  position: fixed; right: 14px; bottom: 84px; z-index: 61;
+  position: fixed; right: 14px; bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 61;
   width: min(380px, calc(100vw - 28px)); height: min(520px, calc(100vh - 120px));
   background: var(--card); border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.25);
   display: flex; flex-direction: column; overflow: hidden;
@@ -298,7 +301,7 @@ label { font-size: 0.83rem; font-weight: 600; color: var(--ink-soft); }
   font-size: 0.62rem; font-weight: 800; border-radius: 999px; padding: 1px 5px;
 }
 .notif-panel {
-  position: fixed; top: 56px; right: 10px; z-index: 70;
+  position: fixed; top: calc(56px + env(safe-area-inset-top)); right: 10px; z-index: 70;
   width: min(360px, calc(100vw - 20px)); max-height: 60vh; overflow-y: auto;
   background: var(--card); border-radius: 14px; box-shadow: 0 8px 30px rgba(0,0,0,0.25);
   padding: 8px 0;

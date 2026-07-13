@@ -44,6 +44,9 @@ export default function ChatWidget({ profile, page, onLessonSaved }) {
       })
     } else if (hasTeacher) {
       setChatWith({ id: profile.teacher_id, name: 'your teacher' })
+      store.getTeacherProfile(profile.teacher_id).then((t) => {
+        if (t) setChatWith({ id: t.id, name: t.display_name || t.email })
+      })
     }
   }, [open, tab]) // eslint-disable-line react-hooks/exhaustive-deps
 
