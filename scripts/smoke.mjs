@@ -20,7 +20,25 @@ try {
   const title = await page.title()
   console.log('title:', title)
 
-  // Local demo mode should land on the dashboard directly
+  // Landing page first — with the flashcard demo
+  const landing = await page.textContent('body')
+  console.log('landing ok:', landing.includes('Create your account'))
+  await page.click('.demo-wrap .flashcard')
+  await page.waitForTimeout(300)
+  console.log('demo card flips:', (await page.textContent('.demo-wrap')).includes('grade yourself'))
+
+  // Enter local mode (no Supabase configured in CI)
+  await page.click('a:has-text("continue on this device")')
+  await page.waitForTimeout(1200)
+
+  // Dismiss the first-run tour
+  const skip = await page.$('.tour-tip button:has-text("Skip")')
+  if (skip) {
+    await skip.click()
+    await page.waitForTimeout(300)
+  }
+  console.log('tour shown:', Boolean(skip))
+
   const body = await page.textContent('body')
   console.log('has dashboard:', body.includes('Bem-vindo'))
   console.log('word count visible:', /Total words/.test(body))
@@ -79,10 +97,30 @@ try {
   const importText = await page.textContent('main')
   console.log('import ok:', importText.includes('Imported 2'))
 
+  // Lessons tab renders
+  await page.click('nav button:has-text("Lessons")')
+  await page.waitForTimeout(300)
+  console.log('lessons ok:', (await page.textContent('main')).includes('Generate a lesson'))
+
+  // Chat widget opens
+  await page.click('.chat-fab')
+  await page.waitForTimeout(300)
+  console.log('chat ok:', (await page.textContent('.chat-panel')).includes('Zé'))
+  await page.click('.chat-fab')
+
+  // Notifications bell opens
+  await page.click('[data-tour="bell"]')
+  await page.waitForTimeout(300)
+  console.log('bell ok:', Boolean(await page.$('.notif-panel')))
+  await page.click('[data-tour="bell"]')
+
   // Settings renders
   await page.click('nav button:has-text("Settings")')
   await page.waitForTimeout(300)
-  console.log('settings ok:', (await page.textContent('main')).includes('Learning limit'))
+  const settingsText = await page.textContent('main')
+  console.log('settings ok:', settingsText.includes('Learning limit'))
+  console.log('settings how-to ok:', settingsText.includes('Replay the app tour'))
+  console.log('settings class ok:', settingsText.includes('My class'))
 
   // Admin (local mode profile is master)
   await page.click('nav button:has-text("Admin")')

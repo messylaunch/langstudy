@@ -1,14 +1,29 @@
 import React, { useEffect, useState } from 'react'
 import * as store from '../lib/store.js'
 import { STATUS_LABELS, STATUS_COLORS } from '../lib/store.js'
+import { LessonView } from './Lessons.jsx'
 
 export default function Dashboard({ words, counts, profile, goTo, reload }) {
   const [activity, setActivity] = useState({})
   const [installing, setInstalling] = useState(false)
+  const [homework, setHomework] = useState([])
+  const [leaders, setLeaders] = useState([])
+  const [spark, setSpark] = useState(null) // random lesson to revisit
+  const [showSpark, setShowSpark] = useState(false)
 
   useEffect(() => {
     store.getActivity().then(setActivity).catch(() => {})
   }, [words])
+
+  useEffect(() => {
+    if (store.mode() === 'supabase' && !store.isTeacherRole(profile)) {
+      store.listAssignmentsAsStudent().then(setHomework).catch(() => {})
+    }
+    store.getLeaderboard().then(setLeaders).catch(() => {})
+    store.listLessons().then((ls) => {
+      if (ls.length) setSpark(ls[Math.floor(Math.random() * ls.length)])
+    }).catch(() => {})
+  }, [profile]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const today = new Date().toISOString().slice(0, 10)
   const todayCount = activity[today] || 0
@@ -39,6 +54,8 @@ export default function Dashboard({ words, counts, profile, goTo, reload }) {
     }
   }
 
+  const openHomework = homework.filter((h) => !h.my?.completed_at)
+
   return (
     <div>
       <h1>Bem-vindo{profile?.display_name ? `, ${profile.display_name}` : ''}! 👋</h1>
@@ -57,10 +74,6 @@ export default function Dashboard({ words, counts, profile, goTo, reload }) {
           <div className="l">In progress</div>
         </div>
         <div className="stat">
-          <div className="n" style={{ color: STATUS_COLORS.recognize }}>{counts.recognize}</div>
-          <div className="l">Recognize</div>
-        </div>
-        <div className="stat">
           <div className="n" style={{ color: dueCount ? STATUS_COLORS.trouble : undefined }}>{dueCount}</div>
           <div className="l">Due for review</div>
         </div>
@@ -69,6 +82,46 @@ export default function Dashboard({ words, counts, profile, goTo, reload }) {
           <div className="l">Day streak</div>
         </div>
       </div>
+
+      {openHomework.length > 0 && (
+        <div className="card" style={{ borderLeft: '4px solid var(--orange)' }}>
+          <h2 style={{ marginTop: 0 }}>📚 Homework from your teacher</h2>
+          {openHomework.map((h) => (
+            <div key={h.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+              <div className="pt">
+                {h.title} {h.due_date && <span className="muted small">due {h.due_date}</span>}
+              </div>
+              {h.instructions && <div className="muted small">{h.instructions}</div>}
+              <div className="row" style={{ marginTop: 8 }}>
+                {(h.words || []).length > 0 && !h.my?.words_added_at && (
+                  <button
+                    className="btn small"
+                    onClick={async () => {
+                      await store.acceptAssignmentWords(h)
+                      await reload()
+                      setHomework(await store.listAssignmentsAsStudent())
+                    }}
+                  >
+                    ＋ Add {(h.words || []).length} words & start
+                  </button>
+                )}
+                {h.my?.words_added_at && (
+                  <span className="muted small">Words added ✔ — study them in Flashcards</span>
+                )}
+                <button
+                  className="btn secondary small"
+                  onClick={async () => {
+                    await store.completeAssignment(h)
+                    setHomework(await store.listAssignmentsAsStudent())
+                  }}
+                >
+                  Mark complete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="card">
         <h2 style={{ marginTop: 0 }}>Today</h2>
@@ -106,6 +159,48 @@ export default function Dashboard({ words, counts, profile, goTo, reload }) {
           </div>
         ))}
       </div>
+
+      {leaders.length > 0 && (
+        <div className="card">
+          <h2 style={{ marginTop: 0 }}>🏆 Leaderboard</h2>
+          {leaders.slice(0, 10).map((u, i) => (
+            <div className="word-row" key={u.id}>
+              <span style={{ width: 26, fontWeight: 800 }}>
+                {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
+              </span>
+              {u.avatar_url ? (
+                <img className="avatar" src={u.avatar_url} alt="" />
+              ) : (
+                <span style={{ fontSize: '1.2rem' }}>🧑‍🎓</span>
+              )}
+              <div className="grow">
+                <span className={u.id === profile?.id ? 'pt' : ''}>
+                  {u.display_name}
+                  {u.id === profile?.id ? ' (you)' : ''}
+                </span>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <strong>{u.points}</strong> <span className="muted small">pts</span>
+                <div className="muted small">{u.learned} learned</div>
+              </div>
+            </div>
+          ))}
+          <p className="muted small">Points = words learned × 10 + cards reviewed.</p>
+        </div>
+      )}
+
+      {spark && (
+        <div className="card" style={{ borderLeft: '4px solid var(--yellow)' }}>
+          <div className="row">
+            <h2 style={{ margin: 0 }} className="grow">💡 Revisit a lesson</h2>
+            <button className="btn ghost small" onClick={() => setShowSpark(!showSpark)}>
+              {showSpark ? 'Hide' : 'Open'}
+            </button>
+          </div>
+          <p className="muted small" style={{ marginBottom: 0 }}>{spark.title}</p>
+          {showSpark && <LessonView lesson={spark} />}
+        </div>
+      )}
 
       {counts.total === 0 && (
         <div className="card">

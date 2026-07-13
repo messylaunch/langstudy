@@ -3,11 +3,12 @@ import * as store from '../lib/store.js'
 import { saveConfig, getConfig } from '../lib/config.js'
 import { resetSupabase } from '../lib/supabaseClient.js'
 
-export default function Auth({ onSignedIn }) {
-  const [mode, setMode] = useState('signin')
+export default function Auth({ initialMode = 'signin', onSignedIn, onBack }) {
+  const [mode, setMode] = useState(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
+  const [isTeacher, setIsTeacher] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
@@ -23,7 +24,7 @@ export default function Auth({ onSignedIn }) {
       if (mode === 'signin') {
         await store.signIn(email, password)
       } else {
-        await store.signUp(email, password, name)
+        await store.signUp(email, password, name, isTeacher ? 'teacher' : 'user')
         setNotice('Account created! If email confirmation is on, check your inbox, then sign in.')
         setMode('signin')
         setBusy(false)
@@ -69,10 +70,20 @@ export default function Auth({ onSignedIn }) {
             required
             minLength={6}
           />
+          {mode === 'signup' && (
+            <label className="row" style={{ gap: 8, margin: '4px 0 10px' }}>
+              <input
+                type="checkbox"
+                checked={isTeacher}
+                onChange={(e) => setIsTeacher(e.target.checked)}
+              />
+              I'm a teacher — I'll manage students, assign homework, and share word lists
+            </label>
+          )}
           {error && <p className="error">{error}</p>}
           {notice && <p className="success">{notice}</p>}
           <button className="btn" style={{ width: '100%' }} disabled={busy}>
-            {mode === 'signin' ? 'Sign in' : 'Create profile'}
+            {mode === 'signin' ? 'Sign in' : isTeacher ? 'Create teacher account' : 'Create account'}
           </button>
         </form>
         <p className="muted small" style={{ textAlign: 'center' }}>
@@ -80,22 +91,27 @@ export default function Auth({ onSignedIn }) {
             <>
               New here?{' '}
               <a href="#" onClick={(e) => { e.preventDefault(); setMode('signup') }}>
-                Create a profile
+                Create an account
               </a>
             </>
           ) : (
             <>
-              Have a profile?{' '}
+              Have an account?{' '}
               <a href="#" onClick={(e) => { e.preventDefault(); setMode('signin') }}>
                 Sign in
               </a>
             </>
           )}
         </p>
+        {onBack && (
+          <p className="muted small" style={{ textAlign: 'center' }}>
+            <a href="#" onClick={(e) => { e.preventDefault(); onBack() }}>← Back to the front page</a>
+          </p>
+        )}
       </div>
       <p className="muted small" style={{ textAlign: 'center' }}>
-        The first profile created becomes the <strong>master profile</strong> and can view
-        everyone’s progress.
+        Students: after signing up, join your teacher's class with their code in{' '}
+        <strong>Settings → My class</strong>.
       </p>
       <p className="muted small" style={{ textAlign: 'center' }}>
         <a href="#" onClick={(e) => { e.preventDefault(); setShowConnect(!showConnect) }}>

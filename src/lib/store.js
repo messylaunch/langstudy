@@ -139,12 +139,12 @@ export async function signIn(email, password) {
   if (error) throw error
 }
 
-export async function signUp(email, password, displayName) {
+export async function signUp(email, password, displayName, role = 'user') {
   const sb = getSupabase()
   const { error } = await sb.auth.signUp({
     email,
     password,
-    options: { data: { display_name: displayName } },
+    options: { data: { display_name: displayName, role } },
   })
   if (error) throw error
 }
@@ -549,4 +549,354 @@ export async function adminListUsers() {
 
 export async function resetLocalData() {
   localStorage.removeItem(LS_DATA)
+}
+
+// ============================================================================
+// v2: account management, teacher classes & homework, notifications, messages,
+//     mini lessons, leaderboard.
+// ============================================================================
+
+// ------------------------------------------------------------------ account
+export async function updateEmail(newEmail) {
+  if (mode() === 'local') {
+    const d = loadLocal()
+    d.profile.email = newEmail
+    saveLocal(d)
+    return
+  }
+  const sb = getSupabase()
+  const { error } = await sb.auth.updateUser({ email: newEmail })
+  if (error) throw error
+  const { data: auth } = await sb.auth.getUser()
+  await sb.from('profiles').update({ email: newEmail }).eq('id', auth.user.id)
+}
+
+export async function updatePassword(newPassword) {
+  if (mode() === 'local') throw new Error('Passwords only apply to Supabase accounts')
+  const sb = getSupabase()
+  const { error } = await sb.auth.updateUser({ password: newPassword })
+  if (error) throw error
+}
+
+export async function uploadAvatar(file) {
+  if (mode() === 'local') {
+    const url = await new Promise((resolve, reject) => {
+      const r = new FileReader()
+      r.onload = () => resolve(r.result)
+      r.onerror = reject
+      r.readAsDataURL(file)
+    })
+    const d = loadLocal()
+    d.profile.avatar_url = url
+    saveLocal(d)
+    return url
+  }
+  const sb = getSupabase()
+  const { data: auth } = await sb.auth.getUser()
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+  const path = `${auth.user.id}/avatar.${ext}`
+  const { error } = await sb.storage.from('avatars').upload(path, file, { upsert: true })
+  if (error) throw error
+  const { data } = sb.storage.from('avatars').getPublicUrl(path)
+  const url = data.publicUrl + '?v=' + Date.now()
+  await sb.from('profiles').update({ avatar_url: url }).eq('id', auth.user.id)
+  return url
+}
+
+// ------------------------------------------------------------ notifications
+// Notifications are kept after being read — read_at is set, nothing deleted.
+export async function listNotifications() {
+  if (mode() === 'local') {
+    const d = loadLocal()
+    return (d.notifications || []).slice(0, 100)
+  }
+  const sb = getSupabase()
+  const { data, error } = await sb
+    .from('notifications')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(100)
+  if (error) return []
+  return data
+}
+
+export async function addNotification(userId, { type = 'info', title, body = '', data = null }) {
+  if (mode() === 'local') {
+    const d = loadLocal()
+    d.notifications = d.notifications || []
+    d.notifications.unshift({
+      id: 'n-' + Date.now() + Math.random().toString(36).slice(2, 6),
+      type, title, body, data,
+      read_at: null,
+      created_at: new Date().toISOString(),
+    })
+    saveLocal(d)
+    return
+  }
+  const sb = getSupabase()
+  await sb.from('notifications').insert({ user_id: userId, type, title, body, data })
+}
+
+export async function markNotificationsRead() {
+  const now = new Date().toISOString()
+  if (mode() === 'local') {
+    const d = loadLocal()
+    for (const n of d.notifications || []) if (!n.read_at) n.read_at = now
+    saveLocal(d)
+    return
+  }
+  const sb = getSupabase()
+  const { data: auth } = await sb.auth.getUser()
+  await sb.from('notifications').update({ read_at: now }).eq('user_id', auth.user.id).is('read_at', null)
+}
+
+// ----------------------------------------------------------------- messages
+export async function listMessages(otherId) {
+  if (mode() === 'local') return []
+  const sb = getSupabase()
+  const { data: auth } = await sb.auth.getUser()
+  const me = auth.user.id
+  const { data, error } = await sb
+    .from('messages')
+    .select('*')
+    .or(`and(from_id.eq.${me},to_id.eq.${otherId}),and(from_id.eq.${otherId},to_id.eq.${me})`)
+    .order('created_at', { ascending: true })
+    .limit(200)
+  if (error) return []
+  return data
+}
+
+export async function sendMessage(toId, body) {
+  if (mode() === 'local') throw new Error('Messaging needs Supabase')
+  const sb = getSupabase()
+  const { data: auth } = await sb.auth.getUser()
+  const { error } = await sb.from('messages').insert({ from_id: auth.user.id, to_id: toId, body })
+  if (error) throw error
+  const name = (await getProfile())?.display_name || 'Someone'
+  await addNotification(toId, {
+    type: 'message',
+    title: `💬 New message from ${name}`,
+    body: body.slice(0, 120),
+  })
+}
+
+// ------------------------------------------------------------- mini lessons
+export async function listLessons() {
+  if (mode() === 'local') {
+    const d = loadLocal()
+    return (d.lessons || []).slice()
+  }
+  const sb = getSupabase()
+  const { data, error } = await sb.from('lessons').select('*').order('created_at', { ascending: false })
+  if (error) return []
+  return data
+}
+
+export async function saveLesson({ title, topic, source = 'generated', content }) {
+  if (mode() === 'local') {
+    const d = loadLocal()
+    d.lessons = d.lessons || []
+    const row = {
+      id: 'l-' + Date.now(),
+      title, topic, source, content,
+      created_at: new Date().toISOString(),
+    }
+    d.lessons.unshift(row)
+    saveLocal(d)
+    return row
+  }
+  const sb = getSupabase()
+  const { data: auth } = await sb.auth.getUser()
+  const { data, error } = await sb
+    .from('lessons')
+    .insert({ user_id: auth.user.id, title, topic, source, content })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteLesson(id) {
+  if (mode() === 'local') {
+    const d = loadLocal()
+    d.lessons = (d.lessons || []).filter((l) => l.id !== id)
+    saveLocal(d)
+    return
+  }
+  const sb = getSupabase()
+  await sb.from('lessons').delete().eq('id', id)
+}
+
+// ------------------------------------------------------------ teacher class
+export function isTeacherRole(profile) {
+  return profile && (profile.role === 'teacher' || profile.role === 'master')
+}
+
+export async function joinClass(code) {
+  if (mode() === 'local') throw new Error('Classes need Supabase')
+  const sb = getSupabase()
+  const { data, error } = await sb.rpc('join_class', { p_code: code })
+  if (error) throw error
+  return data // teacher display name
+}
+
+export async function leaveClass() {
+  if (mode() === 'local') return
+  const sb = getSupabase()
+  await sb.rpc('leave_class')
+}
+
+export async function listMyStudents() {
+  if (mode() === 'local') return []
+  const sb = getSupabase()
+  const { data: auth } = await sb.auth.getUser()
+  const { data: students, error } = await sb
+    .from('profiles')
+    .select('*')
+    .eq('teacher_id', auth.user.id)
+    .order('created_at')
+  if (error) throw error
+  if (!students.length) return []
+  const { data: stats } = await sb
+    .from('words')
+    .select('user_id,status,last_reviewed')
+    .in('user_id', students.map((s) => s.id))
+  const byUser = {}
+  for (const w of stats || []) {
+    const b = (byUser[w.user_id] = byUser[w.user_id] || { total: 0, learned: 0, active: 0, last: null })
+    b.total++
+    if (w.status === 'learned') b.learned++
+    if (['learning', 'trouble'].includes(w.status)) b.active++
+    if (w.last_reviewed && (!b.last || w.last_reviewed > b.last)) b.last = w.last_reviewed
+  }
+  return students.map((s) => ({ ...s, ...(byUser[s.id] || { total: 0, learned: 0, active: 0, last: null }) }))
+}
+
+// -------------------------------------------------------------- assignments
+export async function createAssignment({ title, instructions, words, dueDate, studentIds }) {
+  if (mode() === 'local') throw new Error('Homework needs Supabase')
+  const sb = getSupabase()
+  const { data: auth } = await sb.auth.getUser()
+  const { data: assignment, error } = await sb
+    .from('assignments')
+    .insert({
+      teacher_id: auth.user.id,
+      title,
+      instructions: instructions || null,
+      words: words || [],
+      due_date: dueDate || null,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  const rows = studentIds.map((student_id) => ({ assignment_id: assignment.id, student_id }))
+  const { error: e2 } = await sb.from('assignment_students').insert(rows)
+  if (e2) throw e2
+  const teacherName = (await getProfile())?.display_name || 'Your teacher'
+  await Promise.all(
+    studentIds.map((sid) =>
+      addNotification(sid, {
+        type: 'homework',
+        title: `📚 New homework: ${title}`,
+        body: `${teacherName} assigned you ${(words || []).length ? (words.length + ' words') : 'homework'}${dueDate ? ', due ' + dueDate : ''}.`,
+        data: { assignment_id: assignment.id },
+      })
+    )
+  )
+  return assignment
+}
+
+// For teachers: their assignments with per-student completion.
+export async function listAssignmentsAsTeacher() {
+  if (mode() === 'local') return []
+  const sb = getSupabase()
+  const { data: auth } = await sb.auth.getUser()
+  const { data: assignments, error } = await sb
+    .from('assignments')
+    .select('*')
+    .eq('teacher_id', auth.user.id)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  if (!assignments.length) return []
+  const { data: statuses } = await sb
+    .from('assignment_students')
+    .select('*')
+    .in('assignment_id', assignments.map((a) => a.id))
+  return assignments.map((a) => ({
+    ...a,
+    students: (statuses || []).filter((s) => s.assignment_id === a.id),
+  }))
+}
+
+// For students: assignments given to me, with my status.
+export async function listAssignmentsAsStudent() {
+  if (mode() === 'local') return []
+  const sb = getSupabase()
+  const { data: auth } = await sb.auth.getUser()
+  const { data: mine, error } = await sb
+    .from('assignment_students')
+    .select('*')
+    .eq('student_id', auth.user.id)
+  if (error || !mine?.length) return []
+  const { data: assignments } = await sb
+    .from('assignments')
+    .select('*')
+    .in('id', mine.map((m) => m.assignment_id))
+  return (assignments || [])
+    .map((a) => ({ ...a, my: mine.find((m) => m.assignment_id === a.id) }))
+    .sort((x, y) => (y.created_at || '').localeCompare(x.created_at || ''))
+}
+
+export async function acceptAssignmentWords(assignment) {
+  const added = await addWords(
+    (assignment.words || []).map((w) => ({ ...w, category: w.category || 'homework' }))
+  )
+  const sb = getSupabase()
+  const { data: auth } = await sb.auth.getUser()
+  await sb
+    .from('assignment_students')
+    .update({ words_added_at: new Date().toISOString() })
+    .eq('assignment_id', assignment.id)
+    .eq('student_id', auth.user.id)
+  return added
+}
+
+export async function completeAssignment(assignment) {
+  const sb = getSupabase()
+  const { data: auth } = await sb.auth.getUser()
+  await sb
+    .from('assignment_students')
+    .update({ completed_at: new Date().toISOString() })
+    .eq('assignment_id', assignment.id)
+    .eq('student_id', auth.user.id)
+  const me = (await getProfile())?.display_name || 'A student'
+  await addNotification(assignment.teacher_id, {
+    type: 'homework',
+    title: `✅ ${me} completed "${assignment.title}"`,
+    body: '',
+    data: { assignment_id: assignment.id },
+  })
+}
+
+// -------------------------------------------------------------- leaderboard
+export async function getLeaderboard() {
+  if (mode() === 'local') {
+    const d = loadLocal()
+    const learned = d.words.filter((w) => w.status === 'learned').length
+    const total = Object.values(d.activity || {}).reduce((a, b) => a + b, 0)
+    return [
+      {
+        id: d.profile.id,
+        display_name: d.profile.display_name,
+        avatar_url: d.profile.avatar_url || null,
+        learned,
+        week_cards: total,
+        points: learned * 10 + total,
+      },
+    ]
+  }
+  const sb = getSupabase()
+  const { data, error } = await sb.rpc('leaderboard')
+  if (error) return []
+  return data
 }

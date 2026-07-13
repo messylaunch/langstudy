@@ -7,7 +7,7 @@ import Pronounce from './Pronounce.jsx'
 
 const POS_OPTIONS = ['noun', 'verb', 'adjective', 'adverb', 'pronoun', 'preposition', 'conjunction', 'interjection', 'numeral', 'phrase']
 
-export default function WordList({ words, reload }) {
+export default function WordList({ words, reload, onLesson }) {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [category, setCategory] = useState('all')
@@ -139,7 +139,17 @@ export default function WordList({ words, reload }) {
                     </button>
                   ))}
                 </div>
-                <Pronounce target={w.portuguese} />
+                <div className="row">
+                  <Pronounce target={w.portuguese} />
+                  {onLesson && (
+                    <button
+                      className="btn ghost small"
+                      onClick={() => onLesson(`the word "${w.portuguese}" (${w.english}) — usage, forms, and common phrases`)}
+                    >
+                      📖 Generate lesson
+                    </button>
+                  )}
+                </div>
                 <div style={{ marginTop: 10 }}>
                   <WordInfo word={w} />
                 </div>

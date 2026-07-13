@@ -4,7 +4,7 @@ import { getConfig, saveConfig } from '../lib/config.js'
 import { resetSupabase } from '../lib/supabaseClient.js'
 import { requestPermission, enablePeriodicSync } from '../lib/notify.js'
 
-export default function Settings({ profile, counts, onSaved }) {
+export default function Settings({ profile, counts, onSaved, onReplayTour }) {
   const s = profile?.settings || store.DEFAULT_SETTINGS
   const [displayName, setDisplayName] = useState(profile?.display_name || '')
   const [learningLimit, setLearningLimit] = useState(s.learningLimit)
@@ -19,6 +19,25 @@ export default function Settings({ profile, counts, onSaved }) {
   const [sbUrl, setSbUrl] = useState(cfg.supabaseUrl)
   const [sbKey, setSbKey] = useState(cfg.supabaseAnonKey)
   const [aiKey, setAiKey] = useState(cfg.anthropicApiKey)
+
+  const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '')
+  const [newEmail, setNewEmail] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [accountMsg, setAccountMsg] = useState('')
+  const [classCode, setClassCode] = useState('')
+  const [classMsg, setClassMsg] = useState('')
+
+  const onAvatarFile = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const url = await store.uploadAvatar(file)
+      setAvatarUrl(url)
+      onSaved()
+    } catch (err) {
+      setAccountMsg('⚠ ' + err.message)
+    }
+  }
 
   const save = async () => {
     setError('')
@@ -80,12 +99,168 @@ export default function Settings({ profile, counts, onSaved }) {
 
       <div className="card">
         <h2 style={{ marginTop: 0 }}>Profile</h2>
+        <div className="row" style={{ marginBottom: 10 }}>
+          {avatarUrl ? (
+            <img className="avatar-lg" src={avatarUrl} alt="Your profile picture" />
+          ) : (
+            <span style={{ fontSize: '2.6rem' }}>🧑‍🎓</span>
+          )}
+          <div className="grow">
+            <label>Profile picture</label>
+            <input type="file" accept="image/*" onChange={onAvatarFile} />
+          </div>
+        </div>
         <label>Display name</label>
         <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
         <p className="muted small">
           Signed in as {profile?.email} · role: <strong>{profile?.role}</strong>
           {store.mode() === 'local' && ' · local demo mode (data stays on this device)'}
         </p>
+      </div>
+
+      {store.mode() === 'supabase' && (
+        <div className="card">
+          <h2 style={{ marginTop: 0 }}>Account</h2>
+          <label>Change email</label>
+          <div className="row">
+            <input
+              type="email"
+              className="grow"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder={profile?.email}
+            />
+            <button
+              className="btn secondary small"
+              disabled={!newEmail.trim()}
+              onClick={async () => {
+                try {
+                  await store.updateEmail(newEmail.trim())
+                  setAccountMsg('Email change requested — check both inboxes to confirm.')
+                  setNewEmail('')
+                } catch (e) {
+                  setAccountMsg('⚠ ' + e.message)
+                }
+              }}
+            >
+              Update
+            </button>
+          </div>
+          <label>Change password</label>
+          <div className="row">
+            <input
+              type="password"
+              className="grow"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="New password (min 6 characters)"
+            />
+            <button
+              className="btn secondary small"
+              disabled={newPassword.length < 6}
+              onClick={async () => {
+                try {
+                  await store.updatePassword(newPassword)
+                  setAccountMsg('Password updated ✔')
+                  setNewPassword('')
+                } catch (e) {
+                  setAccountMsg('⚠ ' + e.message)
+                }
+              }}
+            >
+              Update
+            </button>
+          </div>
+          {accountMsg && <p className={accountMsg.startsWith('⚠') ? 'error' : 'success'}>{accountMsg}</p>}
+        </div>
+      )}
+
+      <div className="card">
+        <h2 style={{ marginTop: 0 }}>My class</h2>
+        {store.isTeacherRole(profile) ? (
+          <>
+            <p className="muted small">
+              You're a {profile.role}. Your class code — share it with students so they can join:
+            </p>
+            <p style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: 3, color: 'var(--green-dark)', margin: '4px 0' }}>
+              {profile?.teacher_code || '—'}
+            </p>
+            <p className="muted small">Manage students and homework in the My Class tab.</p>
+          </>
+        ) : profile?.teacher_id ? (
+          <>
+            <p className="muted small">You're in a class ✔ — your teacher can see your progress and send you homework.</p>
+            <button
+              className="btn ghost small"
+              onClick={async () => {
+                if (!confirm('Leave your class? Your teacher will no longer see your progress.')) return
+                await store.leaveClass()
+                onSaved()
+              }}
+            >
+              Leave class
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="muted small">
+              Have a teacher? Enter their class code and they'll be able to follow your progress,
+              assign homework, and chat with you.
+            </p>
+            <div className="row">
+              <input
+                type="text"
+                className="grow"
+                value={classCode}
+                onChange={(e) => setClassCode(e.target.value.toUpperCase())}
+                placeholder="Class code, e.g. 4F7A2C"
+                maxLength={8}
+              />
+              <button
+                className="btn small"
+                disabled={classCode.trim().length < 4}
+                onClick={async () => {
+                  try {
+                    const teacherName = await store.joinClass(classCode)
+                    setClassMsg(`Joined ${teacherName}'s class ✔`)
+                    setClassCode('')
+                    onSaved()
+                  } catch (e) {
+                    setClassMsg('⚠ ' + e.message)
+                  }
+                }}
+              >
+                Join
+              </button>
+            </div>
+            {classMsg && <p className={classMsg.startsWith('⚠') ? 'error' : 'success'}>{classMsg}</p>}
+            {store.mode() === 'local' && (
+              <p className="muted small">Classes need the Supabase backend.</p>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="card">
+        <h2 style={{ marginTop: 0 }}>Help & how-to</h2>
+        <button className="btn secondary small" onClick={onReplayTour}>
+          🔄 Replay the app tour
+        </button>
+        <details style={{ marginTop: 10 }}>
+          <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Quick how-to guide</summary>
+          <ul className="muted small" style={{ lineHeight: 1.7 }}>
+            <li><strong>Home</strong> — words due today, homework, streak, leaderboard, a lesson to revisit.</li>
+            <li><strong>Flashcards</strong> — daily studying. Flip, grade yourself, use ℹ️ Info for conjugations & examples, 🎤 to check pronunciation.</li>
+            <li><strong>Words</strong> — your whole list. Search, filter by status/category/date, add words with pictures.</li>
+            <li><strong>Quiz</strong> — 10 quick questions; try "type the Portuguese" for real recall.</li>
+            <li><strong>Stories</strong> — AI stories from words you know; tap words to add them.</li>
+            <li><strong>Lessons</strong> — generate mini lessons on anything; answers you save from the chat land here. Searchable.</li>
+            <li><strong>Import</strong> — paste your word list or a class document (AI extracts the vocabulary).</li>
+            <li><strong>Chat head (bottom right)</strong> — ask Zé the AI about Portuguese, or message your teacher.</li>
+            <li><strong>Statuses</strong> — Don't know → Learning → Recognize → Learned, with Trouble remembering for the hard ones. Reviewed words come back before you'd forget them.</li>
+            <li><strong>Learning limit</strong> — caps how many words are "in progress" so you never drown.</li>
+          </ul>
+        </details>
       </div>
 
       <div className="card">

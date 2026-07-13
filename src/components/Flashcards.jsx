@@ -4,6 +4,7 @@ import { STATUS_COLORS, STATUS_LABELS } from '../lib/store.js'
 import AudioButton from './AudioButton.jsx'
 import WordInfo from './WordInfo.jsx'
 import Pronounce from './Pronounce.jsx'
+import { setCurrentWord } from '../lib/uiContext.js'
 
 // Grading buttons. 'Good' resolves per-card: it never demotes a word that is
 // already Learned — see gradeStatus().
@@ -57,7 +58,7 @@ function buildQueue(words, settings, scope) {
   return { queue, room, activeCount: active.length, freshCount: fresh.length, dueCount: due.length }
 }
 
-export default function Flashcards({ words, profile, reload }) {
+export default function Flashcards({ words, profile, reload, onLesson }) {
   const settings = profile?.settings || {}
   const [session, setSession] = useState(null) // {queue, index}
   const [flipped, setFlipped] = useState(false)
@@ -172,6 +173,7 @@ export default function Flashcards({ words, profile, reload }) {
   }
 
   const card = session.queue[session.index]
+  setCurrentWord(card.portuguese) // lets the AI chat know what you're looking at
   const front = direction === 'pt-en' ? card.portuguese : card.english
   const back = direction === 'pt-en' ? card.english : card.portuguese
 
@@ -227,6 +229,15 @@ export default function Flashcards({ words, profile, reload }) {
             <div className="row">
               <Pronounce target={card.portuguese} />
               <div className="grow" />
+              {onLesson && (
+                <button
+                  className="btn ghost small"
+                  title="Generate a mini lesson about this word"
+                  onClick={() => onLesson(`the word "${card.portuguese}" (${card.english}) — usage, forms, and common phrases`)}
+                >
+                  📖 Lesson
+                </button>
+              )}
               <button className="btn ghost small" onClick={() => setShowInfo(!showInfo)}>
                 {showInfo ? 'Hide info' : 'ℹ️ Info'}
               </button>

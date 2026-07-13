@@ -232,3 +232,102 @@ export async function extractWordsFromText(text) {
   }
   return result.words || []
 }
+
+// ============================================================================
+// v2: AI tutor chat (page-aware) + mini lesson generation
+// ============================================================================
+
+const LESSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    title: { type: 'string' },
+    topic: { type: 'string' },
+    level: { type: 'string', description: 'beginner, intermediate, or advanced' },
+    sections: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          heading: { type: 'string' },
+          body: { type: 'string', description: 'plain text explanation, short paragraphs' },
+          examples: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: { pt: { type: 'string' }, en: { type: 'string' } },
+              required: ['pt', 'en'],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ['heading', 'body', 'examples'],
+        additionalProperties: false,
+      },
+    },
+    practice: {
+      type: 'array',
+      description: '3-5 practice prompts: English sentence to translate to Portuguese',
+      items: {
+        type: 'object',
+        properties: { en: { type: 'string' }, pt: { type: 'string' } },
+        required: ['en', 'pt'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['title', 'topic', 'level', 'sections', 'practice'],
+  additionalProperties: false,
+}
+
+function lessonPrompt(topic, context) {
+  return `You are a Brazilian Portuguese teacher creating a mini lesson for an English-speaking student who studies with flashcards in a vocabulary app.
+
+Create a short, focused mini lesson on: "${topic}"
+${context ? `Extra context from the student: ${context}` : ''}
+
+Rules:
+- Brazilian Portuguese only.
+- 2-4 short sections, each with a clear heading, a plain-language explanation, and 2-4 example sentences with English translations.
+- End with 3-5 practice items (English → Portuguese).
+- Keep it beginner-friendly unless the topic clearly demands more.`
+}
+
+function tutorSystemNote(context) {
+  return `You are Zé, the friendly AI tutor inside "Fala!", a Brazilian Portuguese vocabulary app for English speakers. Answer questions about Brazilian Portuguese (words, grammar, conjugation, culture, pronunciation) clearly and briefly — a few short paragraphs at most, with Portuguese examples translated to English. Brazilian usage only.
+
+The student is currently on the app's "${context.page || 'home'}" page.${context.word ? ` They are looking at the word/phrase: "${context.word}".` : ''} Use that context when it helps.
+
+If the question is not about learning Portuguese or using the app, gently steer back to Portuguese.`
+}
+
+// history: [{role:'user'|'assistant', content:string}]
+export async function askTutor(history, context = {}) {
+  let reply = await callEdgeFunction('chat', { history: history.slice(-12), context })
+  if (reply && reply.reply) return reply.reply
+  const client = directClient()
+  if (!client) {
+    throw new Error(
+      'AI is not set up yet. Deploy the Supabase Edge Functions (see README) or paste a personal Anthropic API key in Settings.'
+    )
+  }
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 2000,
+    system: tutorSystemNote(context),
+    messages: history.slice(-12),
+  })
+  if (response.stop_reason === 'refusal') throw new Error('The AI declined this request.')
+  const text = response.content.find((b) => b.type === 'text')
+  return text ? text.text : ''
+}
+
+export async function generateLesson(topic, context = '') {
+  let lesson = await callEdgeFunction('generate-lesson', { topic, context })
+  if (!lesson || lesson.error) lesson = await callDirect(lessonPrompt(topic, context), LESSON_SCHEMA, 6000)
+  if (!lesson) {
+    throw new Error(
+      'AI is not set up yet. Deploy the Supabase Edge Functions (see README) or paste a personal Anthropic API key in Settings.'
+    )
+  }
+  return lesson
+}
