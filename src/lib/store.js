@@ -32,6 +32,24 @@ export const STATUS_COLORS = {
   learned: '#0e7a4d',
 }
 
+// Spaced review: how many days a word "rests" before it's due again, by status.
+// Trouble words are always due (same-day re-drill); learned words come back
+// after two weeks so they can't silently decay.
+export const REVIEW_INTERVALS_DAYS = {
+  trouble: 0,
+  learning: 1,
+  recognize: 3,
+  learned: 14,
+}
+
+export function isDue(word, now = new Date()) {
+  const days = REVIEW_INTERVALS_DAYS[word.status]
+  if (days === undefined) return false // 'unknown' words are new, not due
+  const ref = word.last_reviewed || word.status_updated_at || word.created_at
+  if (!ref) return true
+  return now - new Date(ref) >= days * 24 * 60 * 60 * 1000
+}
+
 export const DEFAULT_SETTINGS = {
   learningLimit: 20, // max words allowed in learning+trouble at once
   newPerSession: 10, // new words introduced per study session

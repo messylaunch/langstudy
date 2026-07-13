@@ -94,12 +94,20 @@ output `dist`). HTTPS is required for the PWA install prompt, notifications, and
 - New words start as **Don't know**. Flashcard sessions introduce them a few at a time
   (*Settings → New words per session*) but only while your **Learning limit** has room —
   the count of *Learning + Trouble remembering* words never exceeds it.
+- **Spaced review**: reviewed words rest, then come due again by status — *Trouble* words
+  immediately, *Learning* after 1 day, *Recognize* after 3 days, and *Learned* after 14 days —
+  so nothing silently decays. The Home screen shows how many words are due.
 - Grading a card moves it: **Again** → Trouble remembering · **Hard** → Learning ·
-  **Good** → Recognize · **Easy** → Learned.
-- Quizzes pull from the words you're working on; a wrong answer sends a word back to
-  *Trouble remembering*.
+  **Good** → Recognize (never demotes a Learned word) · **Easy** → Learned.
+- **Session scope**: study everything, one category, or only words added in the last 7/30 days —
+  perfect for drilling exactly what this week's class covered.
+- Quizzes come in two styles: **multiple choice** (both directions) and **type the Portuguese**
+  (real recall — accent-insensitive, but it shows you the accents you missed). A wrong answer
+  sends the word back to *Trouble remembering*.
 - Stories are generated from your known words; tapping a word you understood marks it
   **Recognize** — a nice way to promote passive vocabulary.
+- **Your data is portable**: Settings → "Export my words (CSV)" downloads your whole list in a
+  format the Import screen accepts back.
 
 ## Audio & pronunciation
 

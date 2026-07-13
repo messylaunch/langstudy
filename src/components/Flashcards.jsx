@@ -5,7 +5,8 @@ import AudioButton from './AudioButton.jsx'
 import WordInfo from './WordInfo.jsx'
 import Pronounce from './Pronounce.jsx'
 
-// Grading buttons → new status
+// Grading buttons. 'Good' resolves per-card: it never demotes a word that is
+// already Learned — see gradeStatus().
 const GRADES = [
   ['Again', 'trouble', STATUS_COLORS.trouble, false],
   ['Hard', 'learning', STATUS_COLORS.learning, false],
@@ -13,26 +14,47 @@ const GRADES = [
   ['Easy', 'learned', STATUS_COLORS.learned, true],
 ]
 
-function buildQueue(words, settings) {
-  const active = words.filter((w) => ['learning', 'trouble'].includes(w.status))
-  const trouble = words.filter((w) => w.status === 'trouble')
-  const learning = words.filter((w) => w.status === 'learning')
-  const recognize = words
-    .filter((w) => w.status === 'recognize')
+function gradeStatus(card, target) {
+  if (target === 'recognize' && card.status === 'learned') return 'learned'
+  return target
+}
+
+const MAX_REVIEWS_PER_SESSION = 30
+
+function buildQueue(words, settings, scope) {
+  // Session scope: everything, one category, or only recently added words
+  // (so you can drill exactly what this week's class covered).
+  let pool = words
+  if (scope.category && scope.category !== 'all') {
+    pool = pool.filter((w) => (w.category || 'general') === scope.category)
+  }
+  if (scope.recentDays) {
+    const cutoff = new Date(Date.now() - scope.recentDays * 86400000).toISOString()
+    pool = pool.filter((w) => (w.created_at || '') >= cutoff)
+  }
+
+  // Reviews: words due by status age (trouble now, learning 1d, recognize 3d,
+  // learned 14d) — oldest first, capped so sessions stay a sane length.
+  const now = new Date()
+  const due = pool
+    .filter((w) => w.status !== 'unknown' && store.isDue(w, now))
     .sort((a, b) => (a.last_reviewed || '').localeCompare(b.last_reviewed || ''))
-    .slice(0, 10)
-  // Only introduce new words while under the learning limit
+    .slice(0, MAX_REVIEWS_PER_SESSION)
+
+  // New words: only while the global learning limit has room.
+  const active = words.filter((w) => ['learning', 'trouble'].includes(w.status))
   const room = Math.max(0, (settings.learningLimit || 20) - active.length)
-  const fresh = words
+  const fresh = pool
     .filter((w) => w.status === 'unknown')
     .slice(0, Math.min(room, settings.newPerSession || 10))
-  const queue = [...trouble, ...learning, ...recognize, ...fresh]
+
+  const queue = [...due, ...fresh]
   // shuffle
   for (let i = queue.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
     ;[queue[i], queue[j]] = [queue[j], queue[i]]
   }
-  return { queue, room, activeCount: active.length, freshCount: fresh.length }
+  return { queue, room, activeCount: active.length, freshCount: fresh.length, dueCount: due.length }
 }
 
 export default function Flashcards({ words, profile, reload }) {
@@ -42,20 +64,31 @@ export default function Flashcards({ words, profile, reload }) {
   const [showInfo, setShowInfo] = useState(false)
   const [done, setDone] = useState(null) // {reviewed, correct}
   const [direction, setDirection] = useState('pt-en') // or 'en-pt'
+  const [scopeCategory, setScopeCategory] = useState('all')
+  const [scopeRecent, setScopeRecent] = useState(0) // 0 = all time
 
-  const preview = useMemo(() => buildQueue(words, settings), [words, settings])
+  const scope = useMemo(
+    () => ({ category: scopeCategory, recentDays: Number(scopeRecent) || 0 }),
+    [scopeCategory, scopeRecent]
+  )
+  const categories = useMemo(() => {
+    const set = new Set(words.map((w) => w.category || 'general'))
+    return ['all', ...[...set].sort()]
+  }, [words])
+
+  const preview = useMemo(() => buildQueue(words, settings, scope), [words, settings, scope])
 
   const start = () => {
-    const built = buildQueue(words, settings)
+    const built = buildQueue(words, settings, scope)
     setSession({ queue: built.queue, index: 0, correct: 0 })
     setFlipped(false)
     setShowInfo(false)
     setDone(null)
   }
 
-  const grade = async (newStatus, isCorrect) => {
+  const grade = async (targetStatus, isCorrect) => {
     const card = session.queue[session.index]
-    await store.recordReview(card.id, isCorrect, newStatus)
+    await store.recordReview(card.id, isCorrect, gradeStatus(card, targetStatus))
     const next = session.index + 1
     if (next >= session.queue.length) {
       setDone({ reviewed: session.queue.length, correct: session.correct + (isCorrect ? 1 : 0) })
@@ -91,7 +124,7 @@ export default function Flashcards({ words, profile, reload }) {
           <p>
             <strong>{preview.queue.length}</strong> cards ready:{' '}
             <span className="muted">
-              {preview.activeCount} in progress + {preview.freshCount} new
+              {preview.dueCount} due for review + {preview.freshCount} new
             </span>
           </p>
           <p className="muted small">
@@ -107,12 +140,31 @@ export default function Flashcards({ words, profile, reload }) {
                 <option value="en-pt">English → Portuguese</option>
               </select>
             </div>
+            <div className="grow">
+              <label>Category</label>
+              <select value={scopeCategory} onChange={(e) => setScopeCategory(e.target.value)}>
+                {categories.map((c) => (
+                  <option key={c} value={c}>{c === 'all' ? 'All categories' : c}</option>
+                ))}
+              </select>
+            </div>
+            <div className="grow">
+              <label>Words added</label>
+              <select value={scopeRecent} onChange={(e) => setScopeRecent(e.target.value)}>
+                <option value={0}>Any time</option>
+                <option value={7}>Last 7 days (this week's class)</option>
+                <option value={30}>Last 30 days</option>
+              </select>
+            </div>
           </div>
           <button className="btn" onClick={start} disabled={preview.queue.length === 0}>
             ▶ Start studying
           </button>
           {preview.queue.length === 0 && (
-            <p className="muted small">No cards to study — add or import words first.</p>
+            <p className="muted small">
+              Nothing to study in this scope right now — every reviewed word is resting until it
+              comes due again. Widen the scope, or add/import more words.
+            </p>
           )}
         </div>
       </div>
@@ -165,7 +217,9 @@ export default function Flashcards({ words, profile, reload }) {
             {GRADES.map(([label, status, color, isCorrect]) => (
               <button key={label} style={{ background: color }} onClick={() => grade(status, isCorrect)}>
                 {label}
-                <div style={{ fontSize: '0.65rem', fontWeight: 400 }}>{STATUS_LABELS[status]}</div>
+                <div style={{ fontSize: '0.65rem', fontWeight: 400 }}>
+                  {STATUS_LABELS[gradeStatus(card, status)]}
+                </div>
               </button>
             ))}
           </div>

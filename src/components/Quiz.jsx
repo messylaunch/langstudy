@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import * as store from '../lib/store.js'
+import { normalizePt } from '../lib/speech.js'
 import AudioButton from './AudioButton.jsx'
 
 function shuffle(arr) {
@@ -11,17 +12,18 @@ function shuffle(arr) {
   return a
 }
 
-function buildQuiz(words, n = 10) {
+function buildQuiz(words, mode, n = 10) {
   // quiz words you're working on first; fall back to anything with a translation
   const pool = words.filter((w) => w.english)
   const primary = pool.filter((w) => ['learning', 'trouble', 'recognize'].includes(w.status))
   const source = primary.length >= 4 ? primary : pool
-  const questions = shuffle(source).slice(0, n).map((word) => {
-    const dir = Math.random() < 0.5 ? 'pt-en' : 'en-pt'
+  return shuffle(source).slice(0, n).map((word) => {
+    // typed mode is production practice: always English → type the Portuguese
+    const dir = mode === 'typed' ? 'en-pt' : Math.random() < 0.5 ? 'pt-en' : 'en-pt'
+    const answer = dir === 'pt-en' ? word.english : word.portuguese
     const wrong = shuffle(pool.filter((w) => w.id !== word.id))
       .slice(0, 3)
       .map((w) => (dir === 'pt-en' ? w.english : w.portuguese))
-    const answer = dir === 'pt-en' ? word.english : word.portuguese
     return {
       word,
       dir,
@@ -30,20 +32,24 @@ function buildQuiz(words, n = 10) {
       answer,
     }
   })
-  return questions
 }
 
 export default function Quiz({ words, reload }) {
+  const [mode, setMode] = useState('choice') // choice | typed
   const [quiz, setQuiz] = useState(null)
   const [index, setIndex] = useState(0)
   const [picked, setPicked] = useState(null)
+  const [typed, setTyped] = useState('')
+  const [typedResult, setTypedResult] = useState(null) // {correct, accentMiss}
   const [score, setScore] = useState(0)
   const [finished, setFinished] = useState(false)
 
   const start = () => {
-    setQuiz(buildQuiz(words))
+    setQuiz(buildQuiz(words, mode))
     setIndex(0)
     setPicked(null)
+    setTyped('')
+    setTypedResult(null)
     setScore(0)
     setFinished(false)
   }
@@ -55,9 +61,13 @@ export default function Quiz({ words, reload }) {
         <h1>Quick quiz</h1>
         <div className="card">
           <p className="muted">
-            Ten multiple-choice questions from the words you’re working on — both directions,
-            Portuguese → English and English → Portuguese.
+            Ten quick questions from the words you’re working on.
           </p>
+          <label>Quiz style</label>
+          <select value={mode} onChange={(e) => setMode(e.target.value)}>
+            <option value="choice">Multiple choice (both directions)</option>
+            <option value="typed">Type the Portuguese (harder — real recall)</option>
+          </select>
           <button className="btn" onClick={start} disabled={!ready}>
             ▶ Start quiz
           </button>
@@ -89,12 +99,23 @@ export default function Quiz({ words, reload }) {
   }
 
   const q = quiz[index]
-  const answered = picked !== null
+  const answered = mode === 'typed' ? typedResult !== null : picked !== null
 
   const pick = async (opt) => {
     if (answered) return
     setPicked(opt)
     const correct = opt === q.answer
+    if (correct) setScore(score + 1)
+    await store.recordReview(q.word.id, correct, correct ? null : 'trouble')
+  }
+
+  const submitTyped = async () => {
+    if (answered || !typed.trim()) return
+    // Accent-insensitive match counts as correct — but we show the accents you
+    // missed so you learn the real spelling.
+    const exact = typed.trim().toLowerCase() === q.answer.toLowerCase()
+    const correct = normalizePt(typed) === normalizePt(q.answer)
+    setTypedResult({ correct, accentMiss: correct && !exact })
     if (correct) setScore(score + 1)
     await store.recordReview(q.word.id, correct, correct ? null : 'trouble')
   }
@@ -106,6 +127,8 @@ export default function Quiz({ words, reload }) {
     } else {
       setIndex(index + 1)
       setPicked(null)
+      setTyped('')
+      setTypedResult(null)
     }
   }
 
@@ -120,25 +143,69 @@ export default function Quiz({ words, reload }) {
         </div>
       </div>
       <div className="card" style={{ textAlign: 'center' }}>
-        <p className="muted small">{q.dir === 'pt-en' ? 'What does this mean?' : 'How do you say this in Portuguese?'}</p>
+        <p className="muted small">
+          {q.dir === 'pt-en' ? 'What does this mean?' : 'How do you say this in Portuguese?'}
+        </p>
         <p style={{ fontSize: '1.6rem', fontWeight: 800, margin: '6px 0' }}>
           {q.prompt} {q.dir === 'pt-en' && <AudioButton text={q.prompt} />}
         </p>
       </div>
-      <div>
-        {q.options.map((opt) => (
-          <button
-            key={opt}
-            className={
-              'quiz-option ' +
-              (answered && opt === q.answer ? 'correct' : answered && opt === picked ? 'wrong' : '')
-            }
-            onClick={() => pick(opt)}
+
+      {mode === 'choice' ? (
+        <div>
+          {q.options.map((opt) => (
+            <button
+              key={opt}
+              className={
+                'quiz-option ' +
+                (answered && opt === q.answer ? 'correct' : answered && opt === picked ? 'wrong' : '')
+              }
+              onClick={() => pick(opt)}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="card">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              submitTyped()
+            }}
           >
-            {opt}
-          </button>
-        ))}
-      </div>
+            <input
+              type="text"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              placeholder="Type it in Portuguese… (accents optional)"
+              autoFocus
+              autoComplete="off"
+              autoCapitalize="off"
+              disabled={answered}
+            />
+            {!answered && (
+              <button className="btn" type="submit" disabled={!typed.trim()}>
+                Check
+              </button>
+            )}
+          </form>
+          {typedResult && (
+            <div className={'pron-result ' + (typedResult.correct ? 'pass' : 'fail')}>
+              {typedResult.correct ? (
+                typedResult.accentMiss ? (
+                  <>✅ Right! Watch the accents though: <strong>{q.answer}</strong></>
+                ) : (
+                  <>✅ Correct — <strong>{q.answer}</strong></>
+                )
+              ) : (
+                <>❌ It’s <strong>{q.answer}</strong> <AudioButton text={q.answer} /></>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {answered && (
         <button className="btn" style={{ width: '100%', marginTop: 10 }} onClick={next}>
           {index + 1 >= quiz.length ? 'See results' : 'Next →'}

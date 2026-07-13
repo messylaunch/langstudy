@@ -47,6 +47,23 @@ export default function Settings({ profile, counts, onSaved }) {
     }
   }
 
+  const exportCsv = async () => {
+    const words = await store.listWords()
+    const esc = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"'
+    const rows = [
+      ['portuguese', 'english', 'pos', 'category', 'status', 'notes', 'created_at'].join(','),
+      ...words.map((w) =>
+        [w.portuguese, w.english, w.pos, w.category, w.status, w.notes, w.created_at].map(esc).join(',')
+      ),
+    ]
+    const blob = new Blob(['\ufeff' + rows.join('\n')], { type: 'text/csv;charset=utf-8' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = 'fala-words-' + new Date().toISOString().slice(0, 10) + '.csv'
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
   const saveConnection = () => {
     saveConfig({
       supabaseUrl: sbUrl.trim(),
@@ -146,6 +163,17 @@ export default function Settings({ profile, counts, onSaved }) {
           deploying the Supabase edge functions. The key is stored only in this browser.
         </p>
         <button className="btn secondary" onClick={saveConnection}>Save connections & reload</button>
+      </div>
+
+      <div className="card">
+        <h2 style={{ marginTop: 0 }}>Your data</h2>
+        <p className="muted small">
+          Your word list is yours — download it anytime as a CSV you can re-import here or open in
+          a spreadsheet.
+        </p>
+        <button className="btn secondary small" onClick={exportCsv}>
+          ⬇ Export my words (CSV)
+        </button>
       </div>
 
       {store.mode() === 'local' && (

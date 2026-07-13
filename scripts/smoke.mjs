@@ -44,7 +44,7 @@ try {
   await gradeButtons[2].click() // "Good" → recognize
   await page.waitForTimeout(500)
 
-  // Quiz
+  // Quiz — multiple choice
   await page.click('nav button:has-text("Quiz")')
   await page.waitForTimeout(300)
   await page.click('button:has-text("Start quiz")')
@@ -53,6 +53,20 @@ try {
   console.log('quiz options:', opts.length)
   await opts[0].click()
   await page.waitForTimeout(300)
+
+  // Quiz — typed recall mode
+  await page.click('nav button:has-text("Home")')
+  await page.waitForTimeout(300)
+  await page.click('nav button:has-text("Quiz")')
+  await page.waitForTimeout(300)
+  await page.selectOption('select', 'typed')
+  await page.click('button:has-text("Start quiz")')
+  await page.waitForTimeout(400)
+  await page.fill('input[placeholder*="Portuguese"]', 'xyzzy')
+  await page.click('button:has-text("Check")')
+  await page.waitForTimeout(300)
+  const typedFeedback = await page.textContent('main')
+  console.log('typed quiz ok:', /It.s/.test(typedFeedback))
 
   // Import: paste list, preview, confirm
   await page.click('nav button:has-text("Import")')

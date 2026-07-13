@@ -13,6 +13,7 @@ export default function Dashboard({ words, counts, profile, goTo, reload }) {
   const today = new Date().toISOString().slice(0, 10)
   const todayCount = activity[today] || 0
   const goal = profile?.settings?.dailyGoal || 20
+  const dueCount = words.filter((w) => w.status !== 'unknown' && store.isDue(w)).length
 
   // streak: consecutive days ending today/yesterday with activity
   let streak = 0
@@ -60,6 +61,10 @@ export default function Dashboard({ words, counts, profile, goTo, reload }) {
           <div className="l">Recognize</div>
         </div>
         <div className="stat">
+          <div className="n" style={{ color: dueCount ? STATUS_COLORS.trouble : undefined }}>{dueCount}</div>
+          <div className="l">Due for review</div>
+        </div>
+        <div className="stat">
           <div className="n">🔥 {streak}</div>
           <div className="l">Day streak</div>
         </div>
@@ -74,7 +79,9 @@ export default function Dashboard({ words, counts, profile, goTo, reload }) {
           <div style={{ width: Math.min(100, (todayCount / goal) * 100) + '%' }} />
         </div>
         <div className="row">
-          <button className="btn" onClick={() => goTo('study')}>▶ Study flashcards</button>
+          <button className="btn" onClick={() => goTo('study')}>
+            ▶ Study flashcards{dueCount ? ` (${dueCount} due)` : ''}
+          </button>
           <button className="btn secondary" onClick={() => goTo('quiz')}>Take a quiz</button>
           <button className="btn secondary" onClick={() => goTo('story')}>Read a story</button>
         </div>
