@@ -7,6 +7,7 @@ export default function Dashboard({ words, counts, profile, goTo, reload }) {
   const [activity, setActivity] = useState({})
   const [installing, setInstalling] = useState(false)
   const [homework, setHomework] = useState([])
+  const [hwBusy, setHwBusy] = useState(false)
   const [leaders, setLeaders] = useState([])
   const [spark, setSpark] = useState(null) // random lesson to revisit
   const [showSpark, setShowSpark] = useState(false)
@@ -96,10 +97,16 @@ export default function Dashboard({ words, counts, profile, goTo, reload }) {
                 {(h.words || []).length > 0 && !h.my?.words_added_at && (
                   <button
                     className="btn small"
+                    disabled={hwBusy}
                     onClick={async () => {
-                      await store.acceptAssignmentWords(h)
-                      await reload()
-                      setHomework(await store.listAssignmentsAsStudent())
+                      setHwBusy(true)
+                      try {
+                        await store.acceptAssignmentWords(h)
+                        await reload()
+                        setHomework(await store.listAssignmentsAsStudent())
+                      } finally {
+                        setHwBusy(false)
+                      }
                     }}
                   >
                     ＋ Add {(h.words || []).length} words & start
@@ -110,9 +117,15 @@ export default function Dashboard({ words, counts, profile, goTo, reload }) {
                 )}
                 <button
                   className="btn secondary small"
+                  disabled={hwBusy}
                   onClick={async () => {
-                    await store.completeAssignment(h)
-                    setHomework(await store.listAssignmentsAsStudent())
+                    setHwBusy(true)
+                    try {
+                      await store.completeAssignment(h)
+                      setHomework(await store.listAssignmentsAsStudent())
+                    } finally {
+                      setHwBusy(false)
+                    }
                   }}
                 >
                   Mark complete

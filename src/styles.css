@@ -126,7 +126,7 @@ label { font-size: 0.83rem; font-weight: 600; color: var(--ink-soft); }
 .word-row .meta { font-size: 0.72rem; color: var(--ink-soft); }
 .word-row img.thumb { width: 42px; height: 42px; object-fit: cover; border-radius: 8px; }
 .icon-btn {
-  background: none; border: none; font-size: 1.05rem; padding: 4px 6px;
+  background: none; border: none; font-size: 1.05rem; padding: 8px 10px;
   color: var(--ink-soft); border-radius: 8px;
 }
 .icon-btn:hover { background: var(--bg); }

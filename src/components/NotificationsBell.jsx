@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import * as store from '../lib/store.js'
 
 // Topbar bell. Notifications persist after being read — read just clears the
@@ -6,6 +6,7 @@ import * as store from '../lib/store.js'
 export default function NotificationsBell() {
   const [items, setItems] = useState([])
   const [open, setOpen] = useState(false)
+  const wrapRef = useRef(null)
 
   const load = () => store.listNotifications().then(setItems).catch(() => {})
 
@@ -14,6 +15,21 @@ export default function NotificationsBell() {
     const id = setInterval(load, 60000)
     return () => clearInterval(id)
   }, [])
+
+  // Close on Escape or when clicking anywhere outside the panel.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e) => e.key === 'Escape' && setOpen(false)
+    const onDown = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onDown)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onDown)
+    }
+  }, [open])
 
   const unread = items.filter((n) => !n.read_at).length
 
@@ -28,7 +44,7 @@ export default function NotificationsBell() {
   }
 
   return (
-    <div className="bell-wrap">
+    <div className="bell-wrap" ref={wrapRef}>
       <button onClick={toggle} title="Notifications" data-tour="bell">
         🔔
         {unread > 0 && <span className="bell-count">{unread > 9 ? '9+' : unread}</span>}

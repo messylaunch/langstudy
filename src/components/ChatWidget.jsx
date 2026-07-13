@@ -67,6 +67,14 @@ export default function ChatWidget({ profile, page, onLessonSaved }) {
     if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight
   }, [aiMessages, thread, open, tab])
 
+  // Close the panel with Escape.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e) => e.key === 'Escape' && setOpen(false)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
+
   const send = async () => {
     const text = input.trim()
     if (!text) return
@@ -241,7 +249,7 @@ export default function ChatWidget({ profile, page, onLessonSaved }) {
               onKeyDown={(e) => e.key === 'Enter' && send()}
               disabled={aiBusy || (tab === 'teacher' && !chatWith)}
             />
-            <button onClick={send} disabled={aiBusy || !input.trim()}>
+            <button onClick={send} disabled={aiBusy || !input.trim()} title="Send" aria-label="Send message">
               ➤
             </button>
           </div>

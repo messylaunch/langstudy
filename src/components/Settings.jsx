@@ -39,6 +39,14 @@ export default function Settings({ profile, counts, onSaved, onReplayTour }) {
     }
   }
 
+  const dirty =
+    displayName !== (profile?.display_name || '') ||
+    Number(learningLimit) !== s.learningLimit ||
+    Number(newPerSession) !== s.newPerSession ||
+    Number(dailyGoal) !== s.dailyGoal ||
+    remindersEnabled !== s.remindersEnabled ||
+    reminderTime !== s.reminderTime
+
   const save = async () => {
     setError('')
     try {
@@ -309,6 +317,7 @@ export default function Settings({ profile, counts, onSaved, onReplayTour }) {
 
       {error && <p className="error">{error}</p>}
       {saved && <p className="success">Saved ✔</p>}
+      {dirty && !saved && <p className="muted small">You have unsaved changes ↓</p>}
       <button className="btn" onClick={save}>Save settings</button>
 
       <div className="card" style={{ marginTop: 22 }}>

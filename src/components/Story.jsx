@@ -3,6 +3,7 @@ import * as store from '../lib/store.js'
 import { generateStory, aiAvailable } from '../lib/ai.js'
 import { normalizePt } from '../lib/speech.js'
 import AudioButton from './AudioButton.jsx'
+import { pressable } from '../lib/a11y.js'
 
 export default function Story({ words, reload }) {
   const [stories, setStories] = useState([])
@@ -103,13 +104,20 @@ export default function Story({ words, reload }) {
               <h2 style={{ marginTop: 0 }}>Saved stories</h2>
               {stories.map((s) => (
                 <div className="word-row" key={s.id}>
-                  <div className="grow" style={{ cursor: 'pointer' }} onClick={() => setCurrent(s)}>
+                  <div
+                    className="grow"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setCurrent(s)}
+                    {...pressable(() => setCurrent(s))}
+                  >
                     <div className="pt">{s.title}</div>
                     <div className="meta">{String(s.created_at || '').slice(0, 10)}</div>
                   </div>
                   <button
                     className="icon-btn"
+                    title="Delete story"
                     onClick={async () => {
+                      if (!confirm(`Delete "${s.title}"?`)) return
                       await store.deleteStory(s.id)
                       setStories(stories.filter((x) => x.id !== s.id))
                     }}
@@ -146,6 +154,7 @@ export default function Story({ words, reload }) {
                         e.stopPropagation()
                         clickWord(tok)
                       }}
+                      {...pressable(() => clickWord(tok))}
                     >
                       {tok}
                     </span>

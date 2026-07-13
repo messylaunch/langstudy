@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import * as store from '../lib/store.js'
 import { generateLesson, aiAvailable } from '../lib/ai.js'
 import AudioButton from './AudioButton.jsx'
+import { pressable } from '../lib/a11y.js'
 
 export function LessonView({ lesson, onBack, onDelete }) {
   const c = lesson.content || {}
@@ -180,7 +181,7 @@ export default function Lessons({ seedTopic, onSeedConsumed }) {
           </p>
         )}
         {filtered.map((l) => (
-          <div className="word-row lesson-row" key={l.id} onClick={() => setCurrent(l)}>
+          <div className="word-row lesson-row" key={l.id} onClick={() => setCurrent(l)} {...pressable(() => setCurrent(l))}>
             <div className="grow">
               <div className="pt">
                 {l.source === 'chat' ? '💬' : '📖'} {l.title}

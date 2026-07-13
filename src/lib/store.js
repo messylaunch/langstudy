@@ -24,9 +24,10 @@ export const STATUS_LABELS = {
   recognize: 'Recognize',
   learned: 'Learned',
 }
+// Colors carry white text on badges/buttons — all values keep ≥4.5:1 contrast.
 export const STATUS_COLORS = {
-  unknown: '#8a8a8a',
-  learning: '#d98510',
+  unknown: '#5f6a64',
+  learning: '#8a5500',
   trouble: '#c2403a',
   recognize: '#2b6cb0',
   learned: '#0e7a4d',

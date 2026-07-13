@@ -5,6 +5,7 @@ import AudioButton from './AudioButton.jsx'
 import WordInfo from './WordInfo.jsx'
 import Pronounce from './Pronounce.jsx'
 import { setCurrentWord } from '../lib/uiContext.js'
+import { pressable } from '../lib/a11y.js'
 
 // Grading buttons. 'Good' resolves per-card: it never demotes a word that is
 // already Learned — see gradeStatus().
@@ -94,7 +95,19 @@ export default function Flashcards({ words, profile, reload, onLesson }) {
     setDone(null)
   }
 
+  const [grading, setGrading] = useState(false)
+
   const grade = async (targetStatus, isCorrect) => {
+    if (grading) return // guard against double-taps recording the card twice
+    setGrading(true)
+    try {
+      await gradeInner(targetStatus, isCorrect)
+    } finally {
+      setGrading(false)
+    }
+  }
+
+  const gradeInner = async (targetStatus, isCorrect) => {
     const card = session.queue[session.index]
     await store.recordReview(card.id, isCorrect, gradeStatus(card, targetStatus))
     const next = session.index + 1
@@ -194,7 +207,13 @@ export default function Flashcards({ words, profile, reload, onLesson }) {
         </div>
       </div>
 
-      <div className="flashcard" onClick={() => setFlipped(!flipped)} style={{ marginTop: 12 }}>
+      <div
+        className="flashcard"
+        onClick={() => setFlipped(!flipped)}
+        {...pressable(() => setFlipped(!flipped))}
+        aria-label={flipped ? 'Flashcard, back side' : 'Flashcard, tap to flip'}
+        style={{ marginTop: 12 }}
+      >
         <div className="corner-left">
           <span className="badge" style={{ background: STATUS_COLORS[card.status] }}>
             {STATUS_LABELS[card.status]}
@@ -223,7 +242,7 @@ export default function Flashcards({ words, profile, reload, onLesson }) {
         <>
           <div className="grade-row">
             {GRADES.map(([label, status, color, isCorrect]) => (
-              <button key={label} style={{ background: color }} onClick={() => grade(status, isCorrect)}>
+              <button key={label} style={{ background: color }} disabled={grading} onClick={() => grade(status, isCorrect)}>
                 {label}
                 <div style={{ fontSize: '0.65rem', fontWeight: 400 }}>
                   {STATUS_LABELS[gradeStatus(card, status)]}

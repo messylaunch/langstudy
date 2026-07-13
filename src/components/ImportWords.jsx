@@ -199,6 +199,7 @@ export default function ImportWords({ reload, goTo }) {
                 </div>
                 <button
                   className="icon-btn"
+                  title="Remove from import"
                   onClick={() => setPreview(preview.filter((_, j) => j !== i))}
                 >
                   ✖

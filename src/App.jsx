@@ -41,6 +41,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [showTour, setShowTour] = useState(false)
   const [lessonSeed, setLessonSeed] = useState('')
+  const [loadError, setLoadError] = useState('')
 
   const refreshSession = useCallback(async () => {
     try {
@@ -59,12 +60,14 @@ export default function App() {
 
   const reload = useCallback(async () => {
     setLoading(true)
+    setLoadError('')
     try {
       const [p, w] = await Promise.all([store.getProfile(), store.listWords()])
       setProfile(p)
       setWords(w)
     } catch (e) {
       console.error(e)
+      setLoadError(e.message || 'Something went wrong loading your data.')
     } finally {
       setLoading(false)
     }
@@ -188,6 +191,12 @@ export default function App() {
         {/* Only block rendering on the very first load — background reloads
             must not unmount views (that would wipe in-progress sessions). */}
         {loading && !profile && <p className="muted">Loading your words…</p>}
+        {!loading && !profile && loadError && (
+          <div className="card">
+            <p className="error">Couldn’t load your data: {loadError}</p>
+            <button className="btn" onClick={reload}>Try again</button>
+          </div>
+        )}
         {profile && tab === 'dashboard' && (
           <Dashboard words={words} counts={counts} profile={profile} goTo={setTab} reload={reload} />
         )}

@@ -4,6 +4,7 @@ import { STATUSES, STATUS_LABELS, STATUS_COLORS } from '../lib/store.js'
 import AudioButton from './AudioButton.jsx'
 import WordInfo from './WordInfo.jsx'
 import Pronounce from './Pronounce.jsx'
+import { pressable } from '../lib/a11y.js'
 
 const POS_OPTIONS = ['noun', 'verb', 'adjective', 'adverb', 'pronoun', 'preposition', 'conjunction', 'interjection', 'numeral', 'phrase']
 
@@ -108,7 +109,13 @@ export default function WordList({ words, reload, onLesson }) {
           <div key={w.id}>
             <div className="word-row">
               {w.image_url && <img className="thumb" src={w.image_url} alt="" />}
-              <div className="grow" style={{ cursor: 'pointer' }} onClick={() => setExpanded(expanded === w.id ? null : w.id)}>
+              <div
+                className="grow"
+                style={{ cursor: 'pointer' }}
+                onClick={() => setExpanded(expanded === w.id ? null : w.id)}
+                {...pressable(() => setExpanded(expanded === w.id ? null : w.id))}
+                aria-expanded={expanded === w.id}
+              >
                 <div className="pt">
                   {w.portuguese}{' '}
                   <span className="badge" style={{ background: STATUS_COLORS[w.status] }}>
@@ -233,8 +240,13 @@ function WordEditor({ word, onClose, onSaved }) {
     onSaved()
   }
 
+  // Backdrop clicks only close when nothing would be lost; otherwise use Cancel.
+  const safeClose = () => {
+    if (!word && !pt.trim() && !en.trim()) onClose()
+  }
+
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={safeClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2 style={{ marginTop: 0 }}>{word ? 'Edit word' : 'Add a word or phrase'}</h2>
         <label>Portuguese</label>

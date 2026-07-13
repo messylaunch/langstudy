@@ -166,8 +166,13 @@ function AssignmentEditor({ students, onClose, onSaved }) {
     }
   }
 
+  // A stray backdrop tap must not throw away a composed assignment.
+  const safeClose = () => {
+    if (!title.trim() && !wordsText.trim() && !instructions.trim()) onClose()
+  }
+
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={safeClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2 style={{ marginTop: 0 }}>Assign homework</h2>
         <label>Title</label>

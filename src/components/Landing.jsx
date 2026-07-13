@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { hasSupabase } from '../lib/config.js'
+import { pressable } from '../lib/a11y.js'
 
 // Sample cards for the front-page demo — hardcoded, nothing is saved.
 const DEMO_CARDS = [
@@ -31,7 +32,13 @@ function DemoFlashcard() {
 
   return (
     <div>
-      <div className="flashcard" style={{ minHeight: 220 }} onClick={() => setFlipped(!flipped)}>
+      <div
+        className="flashcard"
+        style={{ minHeight: 220 }}
+        onClick={() => setFlipped(!flipped)}
+        {...pressable(() => setFlipped(!flipped))}
+        aria-label="Demo flashcard, activate to flip"
+      >
         {!flipped ? (
           <>
             <div className="front-word">{card.pt}</div>

@@ -72,6 +72,7 @@ export default function Tour({ isTeacher, onDone }) {
   const steps = STEPS(isTeacher)
   const [i, setI] = useState(0)
   const [rect, setRect] = useState(null)
+  const [tick, setTick] = useState(0) // bumped on resize to re-measure
   const step = steps[i]
 
   useLayoutEffect(() => {
@@ -87,19 +88,25 @@ export default function Tour({ isTeacher, onDone }) {
     el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     const r = el.getBoundingClientRect()
     setRect({ top: r.top, left: r.left, width: r.width, height: r.height })
-  }, [i, step.selector])
+  }, [i, step.selector, tick])
 
   useEffect(() => {
-    const onResize = () => setI((x) => x) // re-run layout effect
+    const onResize = () => setTick((t) => t + 1)
+    const onKey = (e) => e.key === 'Escape' && onDone()
     window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [onDone])
 
   const pad = 6
+  const clampLeft = (left) => Math.max(12, Math.min(left, window.innerWidth - 342))
   const tipStyle = rect
     ? rect.top > window.innerHeight / 2
-      ? { left: Math.min(rect.left, window.innerWidth - 350), bottom: window.innerHeight - rect.top + 12 }
-      : { left: Math.min(rect.left, window.innerWidth - 350), top: rect.top + rect.height + 12 }
+      ? { left: clampLeft(rect.left), bottom: window.innerHeight - rect.top + 12 }
+      : { left: clampLeft(rect.left), top: rect.top + rect.height + 12 }
     : { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }
 
   return (
