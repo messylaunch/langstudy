@@ -9,4 +9,10 @@ export default defineConfig({
   build: {
     outDir: 'dist',
   },
+  // Vitest — pure-logic unit tests. Node env (these functions don't touch the
+  // DOM); the browser end-to-end path stays in `npm run smoke` (Playwright).
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.js'],
+  },
 })

@@ -139,10 +139,32 @@ not included.
 ## Development
 
 ```bash
-npm run dev      # dev server
+npm run dev      # dev server → http://localhost:5180
+npm run lint     # ESLint (flat config; catches real bugs, not style nits)
+npm test         # vitest unit tests (pure logic: review scheduling, pronunciation)
 npm run build    # production build to dist/
-npm run smoke    # headless-browser smoke test of the built app
+npm run smoke    # headless-browser end-to-end smoke of the built app
 ```
+
+Run `npm run lint && npm test && npm run build && npm run smoke` before
+declaring frontend work done. CI (`.github/workflows/ci.yml`) runs lint + test +
+build on every PR; the smoke test is a local check (it needs a preinstalled
+Chromium).
+
+### Claude Code dev system
+
+This repo ships a small, auditable Claude Code setup (see `CLAUDE.md` for the
+full project memory):
+
+- **Agents** (`.claude/agents/`, read-only): `repo-mapper`, `ux-auditor`,
+  `rls-reviewer`, `security-reviewer`, `skeptical-reviewer`.
+- **Skills** (`.claude/skills/`): `repo-health-check`, `rls-review`,
+  `pre-deploy-verify`, `design-review`.
+- **Guardrail hook** (`.claude/hooks/scan-secrets.mjs`, wired in
+  `.claude/settings.json`): blocks commits that would add a secret
+  (`sk-ant-…`, `service_role`, JWTs, private keys) and a few footguns
+  (force-push to main, destructive SQL). Segment-anchored to avoid false
+  positives on commands that merely mention those strings.
 
 Tech: React + Vite, Supabase (auth, Postgres with row-level security, storage, edge functions),
 Anthropic Claude for word enrichment / stories / document extraction, Web Speech API for TTS and
