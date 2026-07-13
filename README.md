@@ -28,6 +28,15 @@ multiple profiles.
 | **Daily study reminders** at your chosen time | Settings |
 | **Master profile** that can view every user's progress; unlimited normal profiles | first account created = master |
 | Installable **PWA** with offline support | browser "Install app" prompt |
+| **Public landing page** with a try-it flashcard demo; sign-up required to use the app | shown when signed out |
+| **Guided tour** of the whole app on first login, replayable anytime | Settings → Help & how-to |
+| **Teacher accounts & classes** — students join with a code; teachers see each student's progress, assign homework with attached word lists, and track completion | sign up as teacher → My Class tab |
+| **Homework** lands on the student's dashboard: one tap adds the words, then mark complete | Home |
+| **Notifications** (homework, messages, completions) that stay in the list after being read | 🔔 bell in the top bar |
+| **Floating chat head** — ask Zé the AI tutor (it knows what page/word you're on) or message your teacher about the next class | bottom-right on every page |
+| **Mini lessons** — generate a lesson on anything ("conjugating ir", "beach phrases"), save AI chat answers as lessons, search your library, revisit one from the dashboard | Lessons tab, plus 📖 buttons on flashcards and words |
+| **Leaderboard** — points from words learned and cards reviewed | Home |
+| **Account management** — profile picture, change email, change password | Settings |
 
 ---
 
@@ -72,6 +81,8 @@ supabase secrets set ANTHROPIC_API_KEY=sk-ant-...      # from console.anthropic.
 supabase functions deploy enrich-word
 supabase functions deploy generate-story
 supabase functions deploy extract-words
+supabase functions deploy chat
+supabase functions deploy generate-lesson
 ```
 
 **Option B: personal API key** — paste an Anthropic API key into *Settings → Connections*. It's

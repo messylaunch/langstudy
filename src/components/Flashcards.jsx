@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import * as store from '../lib/store.js'
 import { STATUS_COLORS, STATUS_LABELS } from '../lib/store.js'
 import AudioButton from './AudioButton.jsx'
@@ -78,6 +78,13 @@ export default function Flashcards({ words, profile, reload, onLesson }) {
   }, [words])
 
   const preview = useMemo(() => buildQueue(words, settings, scope), [words, settings, scope])
+
+  // Tell the AI chat which word is on screen; clear it when leaving this view.
+  const currentPt = session ? session.queue[session.index]?.portuguese : null
+  useEffect(() => {
+    setCurrentWord(currentPt || null)
+    return () => setCurrentWord(null)
+  }, [currentPt])
 
   const start = () => {
     const built = buildQueue(words, settings, scope)
@@ -173,7 +180,6 @@ export default function Flashcards({ words, profile, reload, onLesson }) {
   }
 
   const card = session.queue[session.index]
-  setCurrentWord(card.portuguese) // lets the AI chat know what you're looking at
   const front = direction === 'pt-en' ? card.portuguese : card.english
   const back = direction === 'pt-en' ? card.english : card.portuguese
 
