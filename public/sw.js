@@ -1,7 +1,7 @@
 /* Service worker: app-shell caching + runtime cache for audio/images + study reminder support */
-const SHELL_CACHE = 'fala-shell-v1'
+const SHELL_CACHE = 'fala-shell-v2'
 const RUNTIME_CACHE = 'fala-runtime-v1'
-const SHELL_URLS = ['/', '/index.html', '/manifest.webmanifest']
+const SHELL_URLS = ['/', '/index.html', '/manifest.webmanifest', '/fonts/fraunces.woff2']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
