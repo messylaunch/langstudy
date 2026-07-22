@@ -4,3 +4,13 @@ dist/
 .env.local
 .DS_Store
 *.log
+
+# Third-party Agent Skills installed via `skills add` (not vetted into this repo).
+# Kept out of the app repo so unreviewed skill code never rides into a PR.
+# Our own vetted skills under .claude/skills/ stay tracked individually.
+.agents/
+skills-lock.json
+.claude/skills/ui-ux-pro-max/
+.claude/skills/brandkit/
+.claude/skills/brand-discovery
+.claude/skills/brand-color-strategy-generator
