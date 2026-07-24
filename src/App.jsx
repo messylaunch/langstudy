@@ -197,37 +197,44 @@ export default function App() {
             <button className="btn" onClick={reload}>Try again</button>
           </div>
         )}
-        {profile && tab === 'dashboard' && (
-          <Dashboard words={words} counts={counts} profile={profile} goTo={setTab} reload={reload} />
+        {/* Keyed on tab so each switch remounts and replays the .view entrance
+            (the scroll-film's "rise-in" feel). Views already remount per tab, so
+            keying adds the animation without changing in-view state behavior. */}
+        {profile && (
+          <div className="view" key={tab}>
+            {tab === 'dashboard' && (
+              <Dashboard words={words} counts={counts} profile={profile} goTo={setTab} reload={reload} />
+            )}
+            {tab === 'words' && (
+              <WordList words={words} reload={reload} profile={profile} onLesson={requestLesson} />
+            )}
+            {tab === 'study' && (
+              <Flashcards
+                words={words}
+                profile={profile}
+                counts={counts}
+                reload={reload}
+                onLesson={requestLesson}
+              />
+            )}
+            {tab === 'quiz' && <Quiz words={words} reload={reload} />}
+            {tab === 'story' && <Story words={words} reload={reload} />}
+            {tab === 'lessons' && (
+              <Lessons seedTopic={lessonSeed} onSeedConsumed={() => setLessonSeed('')} />
+            )}
+            {tab === 'import' && <ImportWords reload={reload} goTo={setTab} />}
+            {tab === 'settings' && (
+              <Settings
+                profile={profile}
+                counts={counts}
+                onSaved={reload}
+                onReplayTour={() => setShowTour(true)}
+              />
+            )}
+            {tab === 'class' && isTeacher && <TeacherClass profile={profile} />}
+            {tab === 'admin' && isMaster && <Admin />}
+          </div>
         )}
-        {profile && tab === 'words' && (
-          <WordList words={words} reload={reload} profile={profile} onLesson={requestLesson} />
-        )}
-        {profile && tab === 'study' && (
-          <Flashcards
-            words={words}
-            profile={profile}
-            counts={counts}
-            reload={reload}
-            onLesson={requestLesson}
-          />
-        )}
-        {profile && tab === 'quiz' && <Quiz words={words} reload={reload} />}
-        {profile && tab === 'story' && <Story words={words} reload={reload} />}
-        {profile && tab === 'lessons' && (
-          <Lessons seedTopic={lessonSeed} onSeedConsumed={() => setLessonSeed('')} />
-        )}
-        {profile && tab === 'import' && <ImportWords reload={reload} goTo={setTab} />}
-        {profile && tab === 'settings' && (
-          <Settings
-            profile={profile}
-            counts={counts}
-            onSaved={reload}
-            onReplayTour={() => setShowTour(true)}
-          />
-        )}
-        {profile && tab === 'class' && isTeacher && <TeacherClass profile={profile} />}
-        {profile && tab === 'admin' && isMaster && <Admin />}
       </main>
 
       {profile && <ChatWidget profile={profile} page={tab} />}
